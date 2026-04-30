@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id            String         @id @default(cuid())
+  sport         String
+  league        String
+  homeTeam      String
+  awayTeam      String
+  startTime     DateTime
+  status        String         @default("active")
+  sxEventId     String?  // sportXeventId e.g. "L18511902"
+  polyEventId   String?  // Polymarket Gamma event id e.g. "341080"
+  createdAt     DateTime       @default(now())
+  markets       Market[]
+  canonicalBets CanonicalBet[]
+}
+
+model Market {
+  id         String     @id @default(cuid())
+  eventId    String
+  platform   String     // "sx" | "polymarket"
+  externalId String     // marketHash (SX) | event.id (Poly 1x2) | conditionId (Poly spread/total)
+  startTime  DateTime   // denormalized from event — used for sort/expiry without joins
+  betType    String     @default("1x2") // "1x2" | "12" | "spread" | "total"
+  line       Float?     // handicap or total value for spread/total markets
+  mainLine   Boolean    @default(true)  // false for alt lines
+  status     String     @default("active")
+  createdAt  DateTime   @default(now())
+  event      Event      @relation(fields: [eventId], references: [id])
+  outcomes   Outcome[]
+  trades     Trade[]
+
+  @@unique([platform, externalId])
+}
+
+model Outcome {
+  id              String        @id @default(cuid())
+  marketId        String
+  label           String
+  externalId      String?       // tokenId (Polymarket) | "marketHash:0/1" (SX)
+  currentOdds     Float
+  liquidityDepth  Float
+  liquidityLevels String?       // JSON: Array<{odds: number, size: number}>
+  lastUpdated     DateTime      @default(now())
+  canonicalBetId  String?
+  market          Market        @relation(fields: [marketId], references: [id])
+  canonicalBet    CanonicalBet? @relation(fields: [canonicalBetId], references: [id])
+  trades          Trade[]
+}
+
+model CanonicalBet {
+  id        String    @id @default(cuid())
+  eventId   String
+  key       String    // e.g. "1x2:home", "spread:home:-1.5", "total:over:2.5"
+  betType   String    // "1x2" | "12" | "spread" | "total"
+  side      String    // "home" | "away" | "draw" | "over" | "under" | "not_home" | "not_draw" | "not_away"
+  line      Float?    // signed home perspective; null for 1x2/12; magnitude for total
+  createdAt DateTime  @default(now())
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  outcomes  Outcome[]
+
+  @@unique([eventId, key])
+}
+
+model TeamAlias {
+  id        String @id @default(cuid())
+  canonical String // our normalized name e.g. "Inter Milan"
+  platform  String // "sx" | "polymarket"
+  alias     String // platform-specific name e.g. "FC Internazionale Milano"
+  league    String
+
+  @@unique([platform, alias, league])
+}
+
+model Trade {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  marketId      String
+  outcomeId     String
+  side          String   // "buy" | "sell"
+  requestedSize Float
+  executedSize  Float?
+  requestedOdds Float
+  fillOdds      Float?
+  platform      String
+  txHash        String?
+  status        String   // "pending" | "filled" | "failed"
+  failureReason String?
+  market        Market   @relation(fields: [marketId], references: [id])
+  outcome       Outcome  @relation(fields: [outcomeId], references: [id])
+}
+
+model BotConfig {
+  key   String @id
+  value String
+}

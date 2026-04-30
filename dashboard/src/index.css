@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(220 15% 20%) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(220 15% 20%);
+  border-radius: 3px;
+}
+
+@layer base {
+  :root {
+    /* shadcn baseline — retained so primitives keep working */
+    --background: 220 30% 4%;
+    --foreground: 220 10% 96%;
+    --card: 220 25% 6%;
+    --card-foreground: 220 10% 96%;
+    --popover: 220 25% 6%;
+    --popover-foreground: 220 10% 96%;
+    --primary: 72 95% 64%;
+    --primary-foreground: 220 30% 4%;
+    --secondary: 220 20% 9%;
+    --secondary-foreground: 220 10% 96%;
+    --muted: 220 20% 9%;
+    --muted-foreground: 220 8% 65%;
+    --accent: 220 15% 14%;
+    --accent-foreground: 220 10% 96%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 220 10% 96%;
+    --border: 220 15% 14%;
+    --input: 220 15% 14%;
+    --ring: 72 95% 64%;
+    --radius: 4px;
+
+    /* Terminal tokens */
+    --tm-bg:        220 30% 4%;
+    --tm-bg-sunk:   220 25% 6%;
+    --tm-bg-el:     220 20% 9%;
+    --tm-bd:        220 15% 14%;
+    --tm-bd-st:     220 15% 20%;
+
+    --tm-tx:        220 10% 96%;
+    --tm-tx-dim:    220 8% 65%;
+    --tm-tx-mut:    220 8% 45%;
+
+    --tm-sx:        172 70% 55%;
+    --tm-poly:      217 91% 60%;
+
+    --tm-pos:       142 71% 45%;
+    --tm-neg:       0 84% 60%;
+    --tm-warn:      38 92% 50%;
+
+    --tm-rad:       4px;
+    --tm-rad-lg:    6px;
+
+    --tm-font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+    --tm-font-ui:   'Inter', system-ui, sans-serif;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--tm-font-ui);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@keyframes tm-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}

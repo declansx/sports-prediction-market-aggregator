@@ -1,0 +1,19 @@
+{
+  "name": "sports-prediction-market-router",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "bot",
+    "dashboard"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=bot\" \"npm run dev --workspace=dashboard\"",
+    "build": "npm run build --workspace=bot && npm run build --workspace=dashboard",
+    "test": "npm run test --workspace=bot",
+    "lint": "npm run lint --workspace=bot && npm run lint --workspace=dashboard",
+    "typecheck": "npm run typecheck --workspace=bot && npm run typecheck --workspace=dashboard"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -15,6 +15,7 @@ import { formatOdds } from '../lib/oddsFormat';
 import { useOddsFormat } from '../hooks/useOddsFormat';
 import { LiveMatchHeader } from '../components/LiveMatchHeader';
 import { VenueLogo } from '../components/VenueLogo';
+import { OddsLegend } from '../components/OddsLegend';
 import { type FixtureState } from '../lib/wsBus';
 
 const IN_PLAY_STATUS = 2;
@@ -228,6 +229,10 @@ export function MatchDetail({ group, selection, liveState, onBack, onOddsClick }
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-4">
+        <div className="mb-4 flex justify-end">
+          <OddsLegend />
+        </div>
+
         {/* Moneyline (NA sports) */}
         {american && (mlHome || mlAway) && (
           <DetailSection title="MONEYLINE">

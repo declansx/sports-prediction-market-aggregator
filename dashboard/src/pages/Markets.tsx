@@ -26,6 +26,7 @@ import { type FixtureState } from '../lib/wsBus';
 import { LeagueTree } from '../components/LeagueTree';
 import { BottomSheet } from '../components/BottomSheet';
 import { VenueLogo } from '../components/VenueLogo';
+import { OddsLegend } from '../components/OddsLegend';
 
 const IN_PLAY_STATUS = 2;
 
@@ -589,13 +590,7 @@ function TopStrip({
         {fetchAge}
       </span>
 
-      <div className="ml-auto hidden md:flex items-center gap-3 font-mono text-[10px] tracking-wider text-tm-tx-mut">
-        <span className="inline-flex items-center gap-1"><VenueLogo platform="sx" size={14} /> 192ms</span>
-        <span className="text-tm-bd-st">·</span>
-        <span className="inline-flex items-center gap-1"><VenueLogo platform="polymarket" size={14} /> 204ms</span>
-        <span className="text-tm-bd-st">·</span>
-        <span>BOOK 84%</span>
-      </div>
+      <OddsLegend className="ml-auto" />
     </div>
   );
 }

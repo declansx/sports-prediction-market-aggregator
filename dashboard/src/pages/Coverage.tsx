@@ -51,12 +51,12 @@ function DonutChart({
   return (
     <div className="flex-1 min-w-0 flex flex-col items-center justify-between gap-4 py-2">
       <div className="text-center">
-        <div className="font-mono text-[12px] tracking-[0.14em] text-tm-tx font-semibold">{scope}</div>
-        <div className="font-mono text-[10px] text-tm-tx-mut mt-1 tracking-wider">{scopeSub}</div>
+        <div className="font-mono text-[14px] tracking-[0.14em] text-tm-tx font-semibold">{scope}</div>
+        <div className="font-mono text-[12px] text-tm-tx-mut mt-1 tracking-wider">{scopeSub}</div>
       </div>
 
       {total === 0 ? (
-        <div className="flex items-center justify-center font-mono text-[12px] text-tm-tx-mut min-h-[200px]">— no data</div>
+        <div className="flex items-center justify-center font-mono text-[14px] text-tm-tx-mut min-h-[200px]">— no data</div>
       ) : (
         <div className="relative w-full max-w-[320px] aspect-square">
           <svg
@@ -102,8 +102,8 @@ function DonutChart({
             <span className={cn('text-[44px] font-bold leading-none tabular-nums', winColor)}>
               {winPct}%
             </span>
-            <span className="flex items-center gap-1.5 mt-2 text-[10px] text-tm-tx-dim tracking-[0.18em]">
-              <VenueLogo platform={win === 'sx' ? 'sx' : 'polymarket'} size={13} />
+            <span className="flex items-center gap-1.5 mt-2 text-[12px] text-tm-tx-dim tracking-[0.18em]">
+              <VenueLogo platform={win === 'sx' ? 'sx' : 'polymarket'} size={15} />
               <span>BETTER</span>
             </span>
           </div>
@@ -111,22 +111,22 @@ function DonutChart({
       )}
 
       {total > 0 && (
-        <div className="flex items-center gap-5 font-mono text-[11px]">
+        <div className="flex items-center gap-5 font-mono text-[13px]">
           <span className="flex items-center gap-1.5">
-            <VenueLogo platform="sx" size={13} />
+            <VenueLogo platform="sx" size={15} />
             <span className="text-tm-sx font-bold tabular-nums">{sx}</span>
             <span className="text-tm-tx-mut">· {sxRound}%</span>
           </span>
           <span className="text-tm-bd-st">·</span>
           <span className="flex items-center gap-1.5">
-            <VenueLogo platform="polymarket" size={13} />
+            <VenueLogo platform="polymarket" size={15} />
             <span className="text-tm-poly font-bold tabular-nums">{poly}</span>
             <span className="text-tm-tx-mut">· {polyRound}%</span>
           </span>
         </div>
       )}
 
-      <div className="font-mono text-[10px] text-center min-h-[28px]">
+      <div className="font-mono text-[12px] text-center min-h-[32px]">
         {edge ? (
           <>
             <div>
@@ -180,7 +180,7 @@ export function Coverage() {
   return (
     <div className="h-full flex flex-col">
       <div className="h-10 shrink-0 flex items-center px-4 bg-tm-bg border-b border-tm-bd">
-        <span className="font-mono text-[10px] font-semibold tracking-[0.2em] text-tm-tx-dim">COVERAGE · NEXT 24H</span>
+        <span className="font-mono text-[12px] font-semibold tracking-[0.2em] text-tm-tx-dim">COVERAGE · NEXT 24H</span>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
@@ -194,13 +194,13 @@ export function Coverage() {
               ) : (
                 <>
                   <div className="font-mono leading-none flex items-center gap-3">
-                    <span className={cn('text-[32px] font-bold leading-none', headlineColor)}>{headlinePct}%</span>
-                    <span className="text-[11px] tracking-[0.1em] text-tm-tx-dim flex items-center gap-1.5">
+                    <span className={cn('text-[36px] font-bold leading-none', headlineColor)}>{headlinePct}%</span>
+                    <span className="text-[13px] tracking-[0.1em] text-tm-tx-dim flex items-center gap-1.5">
                       OUTCOMES PRICED BETTER ON
-                      <VenueLogo platform={headlineWinner === 'sx' ? 'sx' : 'polymarket'} size={14} />
+                      <VenueLogo platform={headlineWinner === 'sx' ? 'sx' : 'polymarket'} size={16} />
                     </span>
                   </div>
-                  <div className="font-mono text-[11px] text-tm-tx-dim mt-1.5">
+                  <div className="font-mono text-[13px] text-tm-tx-dim mt-1.5">
                     {headlineEdge && (
                       <>
                         <b className={headlineEdge.venue === 'sx' ? 'text-tm-sx' : 'text-tm-poly'}>
@@ -216,7 +216,7 @@ export function Coverage() {
               )}
             </div>
 
-            <span className="font-mono text-[10px] tracking-[0.2em] text-tm-tx-mut justify-self-start lg:justify-self-end whitespace-nowrap rounded-sm border border-tm-bd-st px-2.5 py-1">
+            <span className="font-mono text-[12px] tracking-[0.2em] text-tm-tx-mut justify-self-start lg:justify-self-end whitespace-nowrap rounded-sm border border-tm-bd-st px-2.5 py-1">
               NEXT 24H
             </span>
           </section>
@@ -224,9 +224,9 @@ export function Coverage() {
           {/* Donut charts */}
           <section className="flex-1 min-h-[420px] rounded-[var(--tm-rad)] border border-tm-bd bg-tm-bg-el px-5 py-4 flex flex-col">
             <div className="flex items-center gap-2 shrink-0">
-              <span className="font-mono text-[10px] tracking-[0.18em] text-tm-tx-mut">BEST ODDS · WHO PRICED HIGHER</span>
+              <span className="font-mono text-[12px] tracking-[0.18em] text-tm-tx-mut">BEST ODDS · WHO PRICED HIGHER</span>
               <span
-                className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-tm-bd-st text-tm-tx-mut text-[9px] font-bold cursor-help"
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-tm-bd-st text-tm-tx-mut text-[11px] font-bold cursor-help"
                 title="Per outcome on games listed on both platforms in the next 24h, which side offers the better price — higher decimal odds for the bettor (SX wins ties). Liquidity-at-better-price is the average dollar size on the winning venue's ladder priced strictly better than the other side's best, over the outcomes the winner won."
               >
                 ?

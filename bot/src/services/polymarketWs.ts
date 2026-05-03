@@ -202,6 +202,30 @@ export function warmPolyBook(tokenId: string): Promise<void> {
   return seedBook(tokenId);
 }
 
+// Polymarket emits `book` and `price_change` independently of `best_bid_ask`,
+// so a price_change that consumes or replaces the top ask updates the book
+// cache while leaving polymarketOddsCache stale. The markets-list "best odds"
+// chip is derived from the odds cache — without this mirror, the chip can keep
+// pointing at a Poly price that no longer exists, making SX look worse than it
+// is. Re-derive top-of-book after every depth update so the two caches agree.
+//
+// IMPORTANT: timestamp normalization. polymarketOddsCache rejects any update
+// whose `updatedAt` is <= the current entry's. seedBestOdds writes with
+// Date.now() (REST has no per-row Polymarket clock to copy). If the mirror
+// passes the WS event's `timestamp` instead, that value comes from Polymarket's
+// clock — typically earlier than the bot's wall-clock at receive time because
+// of network travel, REST call latency, and clock skew. On a quiet market that
+// race deterministically goes: seed sets at T_seed, the very next WS book
+// snapshot arrives with t_pm < T_seed, the mirror's set is rejected, and the
+// chip stays pinned to the seeded value forever (no further events arrive to
+// rescue it). Fix: use Date.now() here so seedBestOdds and the mirror share
+// one monotonic clock. Same reasoning applies to the BBA path below.
+function mirrorTopOfBookToOddsCache(tokenId: string): void {
+  const top = polymarketBookCache.getTopOfBook(tokenId);
+  if (!top || top.bestAsk === undefined) return;
+  polymarketOddsCache.set(tokenId, top.bestAsk, top.bestBid ?? 0, Date.now());
+}
+
 function handleMessage(raw: WebSocket.RawData): void {
   let payload: PolymarketEvent | PolymarketEvent[];
   try {
@@ -219,16 +243,26 @@ function handleMessage(raw: WebSocket.RawData): void {
       const b = ev as BookEventPayload;
       if (!b.asset_id) continue;
       const state = subs.get(b.asset_id);
-      if (!state || state.depthRefCount === 0) continue; // ignore depth when no depth consumer
+      // Process for any subscribed token (totalRef > 0). We can NOT gate on
+      // depthRefCount alone: Polymarket's `best_bid_ask` events do not reliably
+      // fire on every top-of-book change (notably when a price_change zeroes
+      // the best level), so for tokens with only a bestOdds consumer the BBA
+      // path leaves polymarketOddsCache pinned to a vanished top ask, causing
+      // markets-list chips to favour Poly when SX is actually better. Tracking
+      // the book here and mirroring top-of-book into polymarketOddsCache keeps
+      // the chip authoritative regardless of whether BBA events arrive.
+      if (!state || totalRef(state) === 0) continue;
       const ts = parseInt(b.timestamp, 10) || Date.now();
       polymarketBookCache.replaceBook(b.asset_id, b.bids ?? [], b.asks ?? [], ts);
+      mirrorTopOfBookToOddsCache(b.asset_id);
     } else if (ev.event_type === 'price_change') {
       const p = ev as PriceChangeEventPayload;
       if (!p.asset_id || !Array.isArray(p.changes)) continue;
       const state = subs.get(p.asset_id);
-      if (!state || state.depthRefCount === 0) continue;
+      if (!state || totalRef(state) === 0) continue;
       const ts = parseInt(p.timestamp, 10) || Date.now();
       polymarketBookCache.applyPriceChange(p.asset_id, p.changes, ts);
+      mirrorTopOfBookToOddsCache(p.asset_id);
     } else if (ev.event_type === 'best_bid_ask') {
       const bba = ev as BestBidAskEventPayload;
       if (!bba.asset_id) continue;
@@ -237,8 +271,11 @@ function handleMessage(raw: WebSocket.RawData): void {
       const bestAsk = parseFloat(bba.best_ask);
       const bestBid = parseFloat(bba.best_bid);
       if (!Number.isFinite(bestAsk) || bestAsk <= 0) continue;
-      const ts = parseInt(bba.timestamp, 10) || Date.now();
-      polymarketOddsCache.set(bba.asset_id, bestAsk, Number.isFinite(bestBid) ? bestBid : 0, ts);
+      // Use bot wall-clock for the same reason mirror does: seedBestOdds writes
+      // with Date.now(), and Polymarket's emission `timestamp` is consistently
+      // earlier than that on the bot side, which would let the seed shadow real
+      // BBA updates on quiet markets.
+      polymarketOddsCache.set(bba.asset_id, bestAsk, Number.isFinite(bestBid) ? bestBid : 0, Date.now());
     }
     // Ignore tick_size_change, last_trade_price, new_market, market_resolved
   }
@@ -337,10 +374,16 @@ export function subscribeToPolyBook(tokenId: string): void {
   }
   const wasDepthActive = state.depthRefCount > 0;
   state.depthRefCount += 1;
-  // Seed when depth consumer mode transitions 0→1 and cache is empty. This covers both
-  // cold subscribe AND the upgrade case where only a best-odds consumer was active and
-  // we dropped the upstream `book` event earlier.
-  if (!wasDepthActive && !polymarketBookCache.hasToken(tokenId)) {
+  // Force-reseed whenever depth transitions 0→1. While depthRefCount was 0,
+  // handleMessage dropped every `book` and `price_change` frame (see the
+  // `depthRefCount === 0` guards), so the cache may hold levels that were
+  // filled or cancelled in the gap. `hasToken` doesn't imply freshness: a
+  // best-odds consumer keeps the upstream sub (and therefore the cache entry)
+  // alive without keeping it up to date. Clearing first also bypasses
+  // replaceBook's `updatedAt` guard, which would otherwise drop the REST
+  // snapshot if WS frames had advanced the timestamp before depth went idle.
+  if (!wasDepthActive) {
+    polymarketBookCache.clearBook(tokenId);
     seedBook(tokenId).catch((err) => {
       log.error({ err, tokenId }, 'seedBook failed');
     });

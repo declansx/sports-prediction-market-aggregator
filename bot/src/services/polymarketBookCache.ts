@@ -152,6 +152,28 @@ export class PolymarketBookCache extends EventEmitter {
     return this.books.has(tokenId);
   }
 
+  // Raw (un-fee-adjusted) top-of-book prices, sourced directly from the ask/bid
+  // maps. Returned numbers are in raw CLOB price space (0–1), matching what the
+  // `best_bid_ask` WS frame carries — callers that want fee-adjusted taker odds
+  // should run them through `applyFee` themselves.
+  getTopOfBook(tokenId: string): { bestAsk?: number; bestBid?: number; updatedAt: number } | null {
+    const entry = this.books.get(tokenId);
+    if (!entry) return null;
+    let bestAsk: number | undefined;
+    for (const price of entry.asks.keys()) {
+      const p = parseFloat(price);
+      if (!Number.isFinite(p) || p <= 0) continue;
+      if (bestAsk === undefined || p < bestAsk) bestAsk = p;
+    }
+    let bestBid: number | undefined;
+    for (const price of entry.bids.keys()) {
+      const p = parseFloat(price);
+      if (!Number.isFinite(p) || p <= 0) continue;
+      if (bestBid === undefined || p > bestBid) bestBid = p;
+    }
+    return { bestAsk, bestBid, updatedAt: entry.updatedAt };
+  }
+
   private emitUpdate(tokenId: string): void {
     const levels = this.getLevels(tokenId);
     this.emit('polyBookUpdate', { tokenId, levels });

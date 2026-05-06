@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { getMarkets, type Market, type MarketOutcome } from '../lib/api';
+import { type Market, type MarketOutcome } from '../lib/api';
 import { BetSlip } from '../components/BetSlip';
 import { MatchDetail } from './MatchDetail';
 import {
@@ -21,6 +21,7 @@ import { useOddsFormat } from '../hooks/useOddsFormat';
 import { useLiveOdds, liveOddsKey, type LiveOddsMap } from '../hooks/useLiveOdds';
 import { useLivePolyOdds, type LivePolyOddsMap } from '../hooks/useLivePolyOdds';
 import { useLiveFixtureState } from '../hooks/useLiveFixtureState';
+import { useMarketList } from '../hooks/useMarketList';
 import { LiveMatchHeader } from '../components/LiveMatchHeader';
 import { type FixtureState } from '../lib/wsBus';
 import { LeagueTree } from '../components/LeagueTree';
@@ -650,9 +651,7 @@ function collectPolyTokenIds(markets: Market[]): string[] {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function Markets() {
-  const [markets, setMarkets] = useState<Market[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [error] = useState<string | null>(null);
   const [selectedLeague, setSelectedLeague] = useState<string>('MLB');
   const [selectedSport, setSelectedSport] = useState<string>('Baseball');
   const [inPlayMode, setInPlayMode] = useState<boolean>(false);
@@ -660,32 +659,21 @@ export function Markets() {
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
   const [selection, setSelection] = useState<BetSlipSelection | null>(null);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
-  const lastFetchRef = useRef<Date | null>(null);
+  // Markets state is now WS-driven: bot pushes a marketsSnapshot at WS connect
+  // and marketUpsert/marketRemoved deltas thereafter. No periodic REST polling.
+  const { markets, loading } = useMarketList();
   const liveOdds = useLiveOdds();
   const polyTokenIds = useMemo(() => collectPolyTokenIds(markets), [markets]);
   const livePolyOdds = useLivePolyOdds(polyTokenIds);
   const liveFixtures = useLiveFixtureState();
 
-  const fetchMarkets = useCallback(async () => {
-    try {
-      const data = await getMarkets();
-      setMarkets(data);
-      const now = new Date();
-      lastFetchRef.current = now;
-      setLastFetch(now);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load markets');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Bump lastFetch on any market change so the freshness indicator reflects
+  // real data flow, not just initial load time. The previous REST-poll model
+  // updated this every 30s; under WS deltas, refresh it whenever the markets
+  // list mutates (snapshot lands, upsert arrives, or removal happens).
   useEffect(() => {
-    fetchMarkets();
-    const interval = setInterval(fetchMarkets, 30_000);
-    return () => clearInterval(interval);
-  }, [fetchMarkets]);
+    setLastFetch(new Date());
+  }, [markets]);
 
   // Esc closes the BetSlip
   useEffect(() => {
@@ -960,7 +948,7 @@ export function Markets() {
         <BetSlip
           selection={selection}
           onClose={() => setSelection(null)}
-          onTradeExecuted={() => { fetchMarkets(); setSelection(null); }}
+          onTradeExecuted={() => { setSelection(null); }}
         />
       </aside>
 
@@ -969,7 +957,7 @@ export function Markets() {
         <BetSlip
           selection={selection}
           onClose={() => setSelection(null)}
-          onTradeExecuted={() => { fetchMarkets(); setSelection(null); }}
+          onTradeExecuted={() => { setSelection(null); }}
         />
       </BottomSheet>
     </div>

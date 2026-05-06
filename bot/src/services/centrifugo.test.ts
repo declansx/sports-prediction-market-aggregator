@@ -46,6 +46,12 @@ const mockMarketsSub = {
   subscribe: vi.fn(),
 };
 
+const mockMainLineSub = {
+  handlers: {} as Record<string, (...args: unknown[]) => void>,
+  on(event: string, handler: (...args: unknown[]) => void) { this.handlers[event] = handler; },
+  subscribe: vi.fn(),
+};
+
 const mockLiveScoresSub = {
   handlers: {} as Record<string, (...args: unknown[]) => void>,
   on(event: string, handler: (...args: unknown[]) => void) { this.handlers[event] = handler; },
@@ -109,11 +115,13 @@ describe('startCentrifugoService', () => {
   beforeEach(() => {
     mockBestOddsSub.handlers = {};
     mockMarketsSub.handlers = {};
+    mockMainLineSub.handlers = {};
     mockLiveScoresSub.handlers = {};
     mockFixturesGlobalSub.handlers = {};
     mockClient.handlers = {};
     mockBestOddsSub.subscribe.mockClear();
     mockMarketsSub.subscribe.mockClear();
+    mockMainLineSub.subscribe.mockClear();
     mockLiveScoresSub.subscribe.mockClear();
     mockFixturesGlobalSub.subscribe.mockClear();
     mockClient.connect.mockClear();
@@ -121,6 +129,7 @@ describe('startCentrifugoService', () => {
       .mockReset()
       .mockReturnValueOnce(mockBestOddsSub)
       .mockReturnValueOnce(mockMarketsSub)
+      .mockReturnValueOnce(mockMainLineSub)
       .mockReturnValueOnce(mockLiveScoresSub)
       .mockReturnValueOnce(mockFixturesGlobalSub);
     vi.mocked(prisma.market.findMany).mockResolvedValue([{ externalId: '0xabc' } as never]);

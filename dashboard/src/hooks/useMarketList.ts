@@ -1,0 +1,67 @@
+import { useEffect, useRef, useState } from 'react';
+import { wsBus } from '../lib/wsBus';
+import { getMarkets, type Market } from '../lib/api';
+
+// 3 s WS-snapshot timeout. If the bot doesn't push a `marketsSnapshot` over
+// the WS within this window, fall back to GET /api/markets so the page is
+// never stuck on a blank loading state.
+const WS_SNAPSHOT_FALLBACK_MS = 3_000;
+
+/**
+ * Source-of-truth hook for the dashboard's market list.
+ *
+ * Replaces the previous REST-poll + delta merge pattern. The bot now pushes
+ * a `marketsSnapshot` over the dashboard ↔ bot WS at connect time, then
+ * `marketUpsert` / `marketRemoved` deltas as things change. This hook
+ * simply maintains the local mirror.
+ *
+ * Falls back to a single REST fetch if the WS snapshot doesn't arrive
+ * within {@link WS_SNAPSHOT_FALLBACK_MS}, so a transient WS issue doesn't
+ * leave the page blank.
+ */
+export function useMarketList(): { markets: Market[]; loading: boolean } {
+  const [markets, setMarkets] = useState<Market[]>([]);
+  const [loading, setLoading] = useState(true);
+  const cache = useRef(new Map<string, Market>());
+  const snapshotReceived = useRef(false);
+
+  useEffect(() => {
+    const off = wsBus.onMarketLifecycle((msg) => {
+      if (msg.type === 'marketsSnapshot') {
+        cache.current = new Map(msg.data.map((m) => [m.id, m]));
+        snapshotReceived.current = true;
+        setMarkets(Array.from(cache.current.values()));
+        setLoading(false);
+      } else if (msg.type === 'marketUpsert') {
+        cache.current.set(msg.data.id, msg.data);
+        setMarkets(Array.from(cache.current.values()));
+      } else if (msg.type === 'marketRemoved') {
+        cache.current.delete(msg.id);
+        setMarkets(Array.from(cache.current.values()));
+      }
+    });
+
+    // Fallback: if no WS snapshot in 3s, fetch via REST. Only fires once.
+    const fallback = setTimeout(() => {
+      if (snapshotReceived.current) return;
+      getMarkets()
+        .then((data) => {
+          if (snapshotReceived.current) return; // WS won the race
+          cache.current = new Map(data.map((m) => [m.id, m]));
+          setMarkets(Array.from(cache.current.values()));
+          setLoading(false);
+        })
+        .catch(() => {
+          // Best-effort fallback. If REST fails too, leave loading=true so
+          // the next WS snapshot (whenever it arrives) can populate.
+        });
+    }, WS_SNAPSHOT_FALLBACK_MS);
+
+    return () => {
+      clearTimeout(fallback);
+      off();
+    };
+  }, []);
+
+  return { markets, loading };
+}

@@ -3,6 +3,7 @@ import { fetchSxBetMarkets } from '../adapters/sxbet';
 import { fetchPolymarketMarkets } from '../adapters/polymarket';
 import { polymarketOddsCache } from '../services/polymarketOddsCache';
 import { upsertMarkets } from '../db/markets';
+import { emitMarketRemoved } from '../services/marketEvents';
 import { EPL, UCL, UEL, COPA_LIBERTADORES, LA_LIGA, SERIE_A, BUNDESLIGA, EREDIVISIE, LIGUE_1, NBA, MLB, NHL, type LeagueConfig } from '../leagues';
 import type { MarketQuote } from '../types';
 import { createLogger } from '../logger';
@@ -52,17 +53,23 @@ async function deactivateStaleMarkets(
   platform: string,
   currentExternalIds: string[],
 ): Promise<void> {
-  const result = await prisma.market.updateMany({
-    where: {
-      platform,
-      status: 'active',
-      externalId: { notIn: currentExternalIds },
-    },
+  // Fetch all active markets for the platform and diff in JS — a `notIn`
+  // filter on hundreds of IDs blows past SQLite's parameter limit, and
+  // Prisma can't auto-split negation filters.
+  const current = new Set(currentExternalIds);
+  const active = await prisma.market.findMany({
+    where: { platform, status: 'active' },
+    select: { id: true, externalId: true },
+  });
+  const stale = active.filter((m) => !current.has(m.externalId));
+  if (stale.length === 0) return;
+  const ids = stale.map((m) => m.id);
+  await prisma.market.updateMany({
+    where: { id: { in: ids } },
     data: { status: 'inactive' },
   });
-  if (result.count > 0) {
-    log.info({ count: result.count, platform }, 'deactivated stale markets');
-  }
+  for (const id of ids) emitMarketRemoved(id);
+  log.info({ count: ids.length, platform }, 'deactivated stale markets');
 }
 
 // Mark markets whose start time is more than 4 hours ago as inactive.
@@ -70,13 +77,18 @@ async function deactivateStaleMarkets(
 // (Polymarket can take hours to mark closed) but the CLOB has no real orders.
 async function deactivateExpiredMarkets(): Promise<void> {
   const cutoff = new Date(Date.now() - 4 * 60 * 60 * 1000);
-  const result = await prisma.market.updateMany({
+  const expired = await prisma.market.findMany({
     where: { status: 'active', startTime: { lt: cutoff } },
+    select: { id: true },
+  });
+  if (expired.length === 0) return;
+  const ids = expired.map((m) => m.id);
+  await prisma.market.updateMany({
+    where: { id: { in: ids } },
     data: { status: 'inactive' },
   });
-  if (result.count > 0) {
-    log.info({ count: result.count }, 'expired markets past start time');
-  }
+  for (const id of ids) emitMarketRemoved(id);
+  log.info({ count: ids.length }, 'expired markets past start time');
 }
 
 async function runSync(): Promise<void> {

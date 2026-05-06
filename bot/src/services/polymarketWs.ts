@@ -1,6 +1,8 @@
 import WebSocket from 'ws';
 import { polymarketBookCache, type ClobLevel, type PriceChange } from './polymarketBookCache';
 import { polymarketOddsCache } from './polymarketOddsCache';
+import { prisma } from '../db';
+import { emitMarketRemoved } from './marketEvents';
 import { createLogger } from '../logger';
 
 const log = createLogger('polymarketWs');
@@ -52,10 +54,19 @@ interface BestBidAskEventPayload {
   timestamp: string;
 }
 
+interface MarketResolvedEventPayload {
+  event_type: 'market_resolved';
+  market?: string;
+  condition_id?: string;
+  assets_ids?: string[];
+  clob_token_ids?: string[];
+}
+
 type PolymarketEvent =
   | BookEventPayload
   | PriceChangeEventPayload
   | BestBidAskEventPayload
+  | MarketResolvedEventPayload
   | { event_type: string; asset_id?: string };
 
 const subs = new Map<string, SubState>();
@@ -276,8 +287,34 @@ function handleMessage(raw: WebSocket.RawData): void {
       // earlier than that on the bot side, which would let the seed shadow real
       // BBA updates on quiet markets.
       polymarketOddsCache.set(bba.asset_id, bestAsk, Number.isFinite(bestBid) ? bestBid : 0, Date.now());
+    } else if (ev.event_type === 'market_resolved') {
+      // Polymarket has resolved a market — mark every DB market with one of
+      // its clob token ids as inactive and tell the dashboard to drop it.
+      // We match via Outcome.externalId (= clob tokenId) because Market.externalId
+      // can be either the event id or the condition id depending on bet type.
+      const r = ev as MarketResolvedEventPayload;
+      const tokenIds = (r.assets_ids ?? r.clob_token_ids ?? []).filter((s) => typeof s === 'string' && s.length > 0);
+      if (tokenIds.length === 0) continue;
+      void (async () => {
+        try {
+          const outcomes = await prisma.outcome.findMany({
+            where: { externalId: { in: tokenIds }, market: { platform: 'polymarket', status: 'active' } },
+            select: { marketId: true },
+          });
+          if (outcomes.length === 0) return;
+          const marketIds = Array.from(new Set(outcomes.map((o) => o.marketId)));
+          await prisma.market.updateMany({
+            where: { id: { in: marketIds } },
+            data: { status: 'inactive' },
+          });
+          for (const id of marketIds) emitMarketRemoved(id);
+          log.info({ count: marketIds.length, tokenIds }, 'polymarket market_resolved → deactivated');
+        } catch (err) {
+          log.error({ err, tokenIds }, 'market_resolved handler failed');
+        }
+      })();
     }
-    // Ignore tick_size_change, last_trade_price, new_market, market_resolved
+    // Ignore tick_size_change, last_trade_price, new_market
   }
 }
 

@@ -19,6 +19,8 @@ import {
   type FixtureState,
   isTerminalStatus,
 } from '../services/fixtureStateCache';
+import { marketEvents } from '../services/marketEvents';
+import { getOverlaidMarkets, type OverlaidMarket } from '../services/marketGroups';
 
 interface ClientMessage {
   type:
@@ -64,6 +66,20 @@ export function startWsRelay(server: http.Server): void {
       log.error({ err }, 'failed to send snapshot');
       return;
     }
+
+    // Markets snapshot is async (DB query) — fire it after the synchronous
+    // odds/fixture snapshots so the dashboard's loading-state can flip as
+    // soon as the WS connection lands. If the connection drops while the
+    // query is in flight, the readyState check below short-circuits the send.
+    void (async () => {
+      try {
+        const markets = await getOverlaidMarkets();
+        if (ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: 'marketsSnapshot', data: markets }));
+      } catch (err) {
+        log.error({ err }, 'failed to send markets snapshot');
+      }
+    })();
 
     const onOddsUpdate = (entry: BestOddsEntry) => {
       if (ws.readyState !== WebSocket.OPEN) return;
@@ -171,11 +187,33 @@ export function startWsRelay(server: http.Server): void {
       }
     };
 
+    const onMarketUpsert = (market: OverlaidMarket) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      try {
+        ws.send(JSON.stringify({ type: 'marketUpsert', data: market }));
+      } catch (err) {
+        log.error({ err, marketId: market.id }, 'marketUpsert broadcast error');
+        cleanup();
+      }
+    };
+
+    const onMarketRemoved = (payload: { id: string }) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      try {
+        ws.send(JSON.stringify({ type: 'marketRemoved', id: payload.id }));
+      } catch (err) {
+        log.error({ err, marketId: payload.id }, 'marketRemoved broadcast error');
+        cleanup();
+      }
+    };
+
     oddsCache.on('update', onOddsUpdate);
     orderBookCache.on('bookUpdate', onBookUpdate);
     polymarketBookCache.on('polyBookUpdate', onPolyBookUpdate);
     polymarketOddsCache.on('polyOddsUpdate', onPolyOddsUpdate);
     fixtureStateCache.on('update', onFixtureUpdate);
+    marketEvents.on('upsert', onMarketUpsert);
+    marketEvents.on('removed', onMarketRemoved);
 
     function cleanup() {
       oddsCache.off('update', onOddsUpdate);
@@ -183,6 +221,8 @@ export function startWsRelay(server: http.Server): void {
       polymarketBookCache.off('polyBookUpdate', onPolyBookUpdate);
       polymarketOddsCache.off('polyOddsUpdate', onPolyOddsUpdate);
       fixtureStateCache.off('update', onFixtureUpdate);
+      marketEvents.off('upsert', onMarketUpsert);
+      marketEvents.off('removed', onMarketRemoved);
       for (const marketHash of bookSubs) {
         unsubscribeFromMarketBook(marketHash);
       }

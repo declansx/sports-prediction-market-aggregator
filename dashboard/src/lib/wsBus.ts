@@ -1,6 +1,13 @@
 // Shared WebSocket bus — single connection per dashboard tab.
 // Both useLiveOdds and useOrderBook consume from it.
 
+import type { Market } from './api';
+
+export type MarketLifecycleMessage =
+  | { type: 'marketsSnapshot'; data: Market[] }
+  | { type: 'marketUpsert'; data: Market }
+  | { type: 'marketRemoved'; id: string };
+
 export interface BestOddsEntry {
   marketHash: string;
   isMakerBettingOutcomeOne: boolean;
@@ -66,13 +73,15 @@ type IncomingMessage =
   | { type: 'polyBookUpdate'; tokenId: string; levels: BookLevel[] }
   | { type: 'polyOddsSnapshot'; data: PolyOddsEntry[] }
   | { type: 'polyOddsUpdate'; tokenId: string; takerOdds: number; updatedAt: number }
-  | FixtureMessage;
+  | FixtureMessage
+  | MarketLifecycleMessage;
 
 type OddsListener = (msg: { type: 'snapshot'; data: BestOddsEntry[] } | { type: 'update'; data: BestOddsEntry }) => void;
 type BookListener = (frame: BookFrame) => void;
 type PolyBookListener = (frame: PolyBookFrame) => void;
 type PolyOddsListener = (msg: PolyOddsMessage) => void;
 type FixtureListener = (msg: FixtureMessage) => void;
+type MarketLifecycleListener = (msg: MarketLifecycleMessage) => void;
 type StatusListener = (connected: boolean) => void;
 
 const WS_URL = (() => {
@@ -91,9 +100,16 @@ class WsBus {
   private polyBookListeners = new Set<PolyBookListener>();
   private polyOddsListeners = new Set<PolyOddsListener>();
   private fixtureListeners = new Set<FixtureListener>();
+  private marketLifecycleListeners = new Set<MarketLifecycleListener>();
   private statusListeners = new Set<StatusListener>();
   // Retained so new listeners get the current fixture state on subscribe.
   private fixtureCache = new Map<string, FixtureState>();
+  // Mirror of the bot's market list. Populated by `marketsSnapshot` on WS
+  // connect, then patched by `marketUpsert` / `marketRemoved`. Replayed to
+  // late subscribers so a remounting page sees the current state without
+  // waiting for a fresh snapshot.
+  private marketsCache = new Map<string, Market>();
+  private marketsSnapshotReceived = false;
   // ref-counted per-marketHash book subscriptions (from this browser)
   private bookSubRefs = new Map<string, number>();
   private polyBookSubRefs = new Map<string, number>();
@@ -153,6 +169,17 @@ class WsBus {
       } else if (msg.type === 'fixtureRemove') {
         this.fixtureCache.delete(msg.sxEventId);
         for (const l of this.fixtureListeners) l(msg);
+      } else if (msg.type === 'marketsSnapshot') {
+        this.marketsCache.clear();
+        for (const m of msg.data) this.marketsCache.set(m.id, m);
+        this.marketsSnapshotReceived = true;
+        for (const l of this.marketLifecycleListeners) l(msg);
+      } else if (msg.type === 'marketUpsert') {
+        this.marketsCache.set(msg.data.id, msg.data);
+        for (const l of this.marketLifecycleListeners) l(msg);
+      } else if (msg.type === 'marketRemoved') {
+        this.marketsCache.delete(msg.id);
+        for (const l of this.marketLifecycleListeners) l(msg);
       }
     };
 
@@ -202,6 +229,20 @@ class WsBus {
       listener({ type: 'fixtureSnapshot', data: Array.from(this.fixtureCache.values()) });
     }
     return () => { this.fixtureListeners.delete(listener); };
+  }
+
+  onMarketLifecycle(listener: MarketLifecycleListener): () => void {
+    this.ensureConnected();
+    this.marketLifecycleListeners.add(listener);
+    // Replay the cached snapshot so a late-subscribing component (e.g. after
+    // a route change) gets the full market list without waiting for a fresh
+    // WS reconnect. Only replay if we've actually received a snapshot — an
+    // empty cache before first connect would mislead the consumer into
+    // thinking there are zero markets.
+    if (this.marketsSnapshotReceived) {
+      listener({ type: 'marketsSnapshot', data: Array.from(this.marketsCache.values()) });
+    }
+    return () => { this.marketLifecycleListeners.delete(listener); };
   }
 
   onStatus(listener: StatusListener): () => void {

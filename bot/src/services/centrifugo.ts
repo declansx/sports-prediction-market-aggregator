@@ -7,6 +7,7 @@ import { oddsCache } from './oddsCache';
 import { orderBookCache, type SxOrderRecord } from './orderBookCache';
 import { fixtureStateCache, type FixturePeriod } from './fixtureStateCache';
 import { seedAllFixtureState, seedFixtureStatuses } from './sxFixtureService';
+import { emitMarketUpsert, emitMarketRemoved } from './marketEvents';
 
 const log = createLogger('centrifugo');
 
@@ -349,9 +350,139 @@ export function startCentrifugoService(): void {
     seedMarkets().catch((err) => log.error({ err }, 'markets seed failed'));
   });
 
+  // SX market publication shape (per docs); only fields the bot acts on are typed.
+  interface MarketPublication {
+    marketHash: string;
+    status?: string;
+    gameTime?: number;
+    line?: number;
+  }
+
+  // Inline handler: react to status / line / gameTime changes for markets we
+  // already have in the DB. New-market additions are not handled here — they
+  // need full canonicalization + event linking that lives in upsertMarkets.
+  // The 30s marketSync picks those up at the next cycle.
+  marketsSub.on('publication', (ctx) => {
+    const data = ctx.data as MarketPublication | MarketPublication[];
+    const batch = Array.isArray(data) ? data : [data];
+    for (const p of batch) {
+      if (!p || typeof p.marketHash !== 'string') continue;
+      const marketHash = p.marketHash;
+      // SX externalId is the marketHash itself (see adapters/sxbet.ts).
+      void (async () => {
+        try {
+          const existing = await prisma.market.findUnique({
+            where: { platform_externalId: { platform: 'sx', externalId: marketHash } },
+            select: { id: true, status: true, line: true, startTime: true },
+          });
+          if (!existing) return; // unknown market — let marketSync pick it up
+
+          const sxStatus = typeof p.status === 'string' ? p.status.toUpperCase() : null;
+          const newStatus = sxStatus === 'ACTIVE' ? 'active' : sxStatus ? 'inactive' : null;
+          const newStartTime =
+            typeof p.gameTime === 'number' ? new Date(p.gameTime * 1000) : null;
+          const newLine = typeof p.line === 'number' ? p.line : null;
+
+          const update: { status?: string; startTime?: Date; line?: number } = {};
+          if (newStatus && newStatus !== existing.status) update.status = newStatus;
+          if (newStartTime && newStartTime.getTime() !== existing.startTime.getTime()) {
+            update.startTime = newStartTime;
+          }
+          if (newLine !== null && newLine !== existing.line) update.line = newLine;
+
+          if (Object.keys(update).length === 0) return;
+
+          await prisma.market.update({ where: { id: existing.id }, data: update });
+
+          if (update.status === 'inactive') {
+            emitMarketRemoved(existing.id);
+          } else {
+            emitMarketUpsert(existing.id);
+          }
+        } catch (err) {
+          log.error({ err, marketHash }, 'markets:global inline update failed');
+        }
+      })();
+    }
+  });
+
   marketsSub.on('unsubscribed', (ctx) => {
     log.warn({ channel: 'markets:global', code: ctx.code }, 'unsubscribed, resubscribing');
     marketsSub.subscribe();
+  });
+
+  // main_line:global — reports which marketHash is now the main line for a
+  // given (sportXEventId, marketType). Toggle mainLine flags accordingly so
+  // the dashboard's "main line only" filter shows the correct row without
+  // waiting for the 30s marketSync.
+  interface MainLinePublication {
+    marketHash: string;
+    marketType: number;
+    sportXEventId: string;
+  }
+
+  const mainLineSub = client.newSubscription('main_line:global', {
+    positioned: true,
+    recoverable: true,
+  });
+
+  mainLineSub.on('subscribed', () => {
+    log.info({ channel: 'main_line:global' }, 'subscribed');
+  });
+
+  mainLineSub.on('publication', (ctx) => {
+    const data = ctx.data as MainLinePublication | MainLinePublication[];
+    const batch = Array.isArray(data) ? data : [data];
+    for (const p of batch) {
+      if (!p || typeof p.marketHash !== 'string' || typeof p.sportXEventId !== 'string') continue;
+      const newMainHash = p.marketHash;
+      const sxEventId = p.sportXEventId;
+      void (async () => {
+        try {
+          // Find the new main-line market (must already exist in our DB).
+          const newMain = await prisma.market.findUnique({
+            where: { platform_externalId: { platform: 'sx', externalId: newMainHash } },
+            select: { id: true, eventId: true, betType: true, mainLine: true },
+          });
+          if (!newMain) return; // unknown — marketSync will reconcile later
+
+          // Find the previously-main market for this (event, betType) pair.
+          // Limit scope by Event.sxEventId so we don't accidentally cross events.
+          const prev = await prisma.market.findMany({
+            where: {
+              platform: 'sx',
+              betType: newMain.betType,
+              mainLine: true,
+              event: { sxEventId },
+              id: { not: newMain.id },
+            },
+            select: { id: true },
+          });
+
+          const ops: Promise<unknown>[] = [];
+          if (!newMain.mainLine) {
+            ops.push(
+              prisma.market.update({ where: { id: newMain.id }, data: { mainLine: true } }),
+            );
+          }
+          for (const m of prev) {
+            ops.push(prisma.market.update({ where: { id: m.id }, data: { mainLine: false } }));
+          }
+          if (ops.length === 0) return;
+          await Promise.all(ops);
+
+          if (!newMain.mainLine) emitMarketUpsert(newMain.id);
+          for (const m of prev) emitMarketUpsert(m.id);
+        } catch (err) {
+          log.error({ err, marketHash: newMainHash, sxEventId }, 'main_line:global update failed');
+        }
+      })();
+    }
+  });
+
+  mainLineSub.on('unsubscribed', (ctx) => {
+    log.warn({ channel: 'main_line:global', code: ctx.code }, 'unsubscribed, resubscribing');
+    mainLineSub.subscribe();
   });
 
   // fixtures:live_scores — positioned + recoverable; seed via REST when history not replayed
@@ -456,6 +587,7 @@ export function startCentrifugoService(): void {
 
   bestOddsSub.subscribe();
   marketsSub.subscribe();
+  mainLineSub.subscribe();
   liveScoresSub.subscribe();
   fixturesGlobalSub.subscribe();
   client.connect();

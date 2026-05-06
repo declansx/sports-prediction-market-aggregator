@@ -2,25 +2,42 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { MarketQuote } from '../types';
 
 const mockEventFindFirst = vi.fn();
+const mockEventFindMany = vi.fn();
 const mockEventUpdate = vi.fn();
 const mockEventCreate = vi.fn();
+const mockEventDelete = vi.fn();
 const mockMarketUpsert = vi.fn();
+const mockMarketFindMany = vi.fn();
+const mockMarketUpdateMany = vi.fn();
 const mockOutcomeFindMany = vi.fn();
 const mockOutcomeUpdate = vi.fn();
+const mockOutcomeUpdateMany = vi.fn();
 const mockOutcomeCreate = vi.fn();
 const mockOutcomeDeleteMany = vi.fn();
 const mockTeamAliasUpsert = vi.fn();
 const mockCanonicalBetFindUnique = vi.fn();
 const mockCanonicalBetCreate = vi.fn();
 const mockCanonicalBetDeleteMany = vi.fn();
+const mockTransaction = vi.fn();
 
 vi.mock('./index', () => ({
   prisma: {
-    event: { findFirst: mockEventFindFirst, update: mockEventUpdate, create: mockEventCreate },
-    market: { upsert: mockMarketUpsert },
+    event: {
+      findFirst: mockEventFindFirst,
+      findMany: mockEventFindMany,
+      update: mockEventUpdate,
+      create: mockEventCreate,
+      delete: mockEventDelete,
+    },
+    market: {
+      upsert: mockMarketUpsert,
+      findMany: mockMarketFindMany,
+      updateMany: mockMarketUpdateMany,
+    },
     outcome: {
       findMany: mockOutcomeFindMany,
       update: mockOutcomeUpdate,
+      updateMany: mockOutcomeUpdateMany,
       create: mockOutcomeCreate,
       deleteMany: mockOutcomeDeleteMany,
     },
@@ -30,6 +47,7 @@ vi.mock('./index', () => ({
       deleteMany: mockCanonicalBetDeleteMany,
     },
     teamAlias: { upsert: mockTeamAliasUpsert },
+    $transaction: mockTransaction,
   },
 }));
 
@@ -85,6 +103,21 @@ describe('upsertMarkets', () => {
       Promise.resolve({ id: `cb-${args.data.key}`, ...args.data }),
     );
     mockCanonicalBetDeleteMany.mockResolvedValue({ count: 0 });
+    // Default: absorber finds no twins
+    mockEventFindMany.mockResolvedValue([]);
+    // $transaction(callback) runs the callback with a tx that delegates to the mocks
+    mockTransaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        event: { update: mockEventUpdate, delete: mockEventDelete },
+        market: { findMany: mockMarketFindMany, updateMany: mockMarketUpdateMany },
+        outcome: { updateMany: mockOutcomeUpdateMany },
+      };
+      return cb(tx);
+    });
+    mockMarketFindMany.mockResolvedValue([]);
+    mockMarketUpdateMany.mockResolvedValue({ count: 0 });
+    mockOutcomeUpdateMany.mockResolvedValue({ count: 0 });
+    mockEventDelete.mockResolvedValue({});
   });
 
   it('creates event then market then new outcomes when none exist', async () => {
@@ -257,5 +290,230 @@ describe('upsertMarkets', () => {
     // Asserting "no throw" is the meaningful behavior — the error itself is
     // reported via the logger (verified by manual debug-level inspection).
     expect(mockMarketUpsert).not.toHaveBeenCalled();
+  });
+
+  // ─── absorbCrossPlatformTwin ──────────────────────────────────────────────
+  describe('cross-platform twin absorber', () => {
+    // Setup helper: SX quote arrives, no Path-1/Path-2 match, event is created
+    // with the quote's sxEventId. This is the precondition for absorb to run.
+    function arrangeFreshSxEventForAbsorb(eventOverrides: Record<string, unknown> = {}) {
+      // Path-1 by sxEventId returns null, Path-2 by league window returns null,
+      // so findOrCreateEventCore creates a new event.
+      mockEventFindFirst.mockResolvedValue(null);
+      mockEventCreate.mockResolvedValue({
+        id: 'event-sx',
+        homeTeam: 'Lakers',
+        awayTeam: 'Warriors',
+        sport: 'Basketball',
+        league: 'NBA',
+        startTime: SAMPLE_QUOTE.startTime,
+        sxEventId: 'L12345',
+        polyEventId: null,
+        ...eventOverrides,
+      });
+      mockMarketUpsert.mockResolvedValue({ id: 'market-1' });
+      mockOutcomeFindMany.mockResolvedValue([]);
+      mockOutcomeCreate.mockImplementation((args: { data: { label: string } }) =>
+        Promise.resolve({ id: `out-${args.data.label}`, ...args.data }),
+      );
+    }
+
+    it('absorbs a single PM-only twin into a freshly-created SX event', async () => {
+      arrangeFreshSxEventForAbsorb();
+      // One PM-only twin on the same ET day, no SX id (the kind of orphan
+      // produced when PM uses a placeholder time outside the ±2h Path-2 window).
+      mockEventFindMany.mockResolvedValue([
+        {
+          id: 'event-pm-twin',
+          league: 'NBA',
+          homeTeam: 'Lakers',
+          awayTeam: 'Warriors',
+          startTime: SAMPLE_QUOTE.startTime,
+          sxEventId: null,
+          polyEventId: '99999',
+        },
+      ]);
+      mockMarketFindMany.mockResolvedValue([{ id: 'pm-market-1' }, { id: 'pm-market-2' }]);
+
+      const { upsertMarkets } = await import('./markets');
+      await upsertMarkets([SAMPLE_QUOTE]);
+
+      // PM markets get re-pointed onto the SX event
+      expect(mockMarketUpdateMany).toHaveBeenCalledWith({
+        where: { eventId: 'event-pm-twin' },
+        data: { eventId: 'event-sx' },
+      });
+      // PM outcomes' canonical-bet links cleared so they re-link against the SX event
+      expect(mockOutcomeUpdateMany).toHaveBeenCalledWith({
+        where: { marketId: { in: ['pm-market-1', 'pm-market-2'] } },
+        data: { canonicalBetId: null },
+      });
+      // SX event inherits the twin's polyEventId
+      expect(mockEventUpdate).toHaveBeenCalledWith({
+        where: { id: 'event-sx' },
+        data: { polyEventId: '99999' },
+      });
+      // Twin event deleted
+      expect(mockEventDelete).toHaveBeenCalledWith({ where: { id: 'event-pm-twin' } });
+    });
+
+    it('absorbs in the PM-arrives direction (PM event inherits sxEventId from twin)', async () => {
+      mockEventFindFirst.mockResolvedValue(null);
+      mockEventCreate.mockResolvedValue({
+        id: 'event-pm',
+        homeTeam: 'Lakers',
+        awayTeam: 'Warriors',
+        sport: 'Basketball',
+        league: 'NBA',
+        startTime: SAMPLE_QUOTE.startTime,
+        sxEventId: null,
+        polyEventId: '99999',
+      });
+      mockMarketUpsert.mockResolvedValue({ id: 'market-1' });
+      mockOutcomeFindMany.mockResolvedValue([]);
+      mockOutcomeCreate.mockImplementation((args: { data: { label: string } }) =>
+        Promise.resolve({ id: `out-${args.data.label}`, ...args.data }),
+      );
+      mockEventFindMany.mockResolvedValue([
+        {
+          id: 'event-sx-twin',
+          league: 'NBA',
+          homeTeam: 'Lakers',
+          awayTeam: 'Warriors',
+          startTime: SAMPLE_QUOTE.startTime,
+          sxEventId: 'L12345',
+          polyEventId: null,
+        },
+      ]);
+      mockMarketFindMany.mockResolvedValue([{ id: 'sx-market-1' }]);
+
+      const { upsertMarkets } = await import('./markets');
+      const polyQuote: MarketQuote = {
+        ...SAMPLE_QUOTE,
+        platform: 'polymarket',
+        sxEventId: undefined,
+        polyEventId: '99999',
+      };
+      await upsertMarkets([polyQuote]);
+
+      expect(mockMarketUpdateMany).toHaveBeenCalledWith({
+        where: { eventId: 'event-sx-twin' },
+        data: { eventId: 'event-pm' },
+      });
+      expect(mockEventUpdate).toHaveBeenCalledWith({
+        where: { id: 'event-pm' },
+        data: { sxEventId: 'L12345' },
+      });
+      expect(mockEventDelete).toHaveBeenCalledWith({ where: { id: 'event-sx-twin' } });
+    });
+
+    it('skips absorb when multiple same-day twins exist (doubleheader safeguard)', async () => {
+      arrangeFreshSxEventForAbsorb();
+      mockEventFindMany.mockResolvedValue([
+        {
+          id: 'event-pm-twin-1',
+          league: 'NBA',
+          homeTeam: 'Lakers',
+          awayTeam: 'Warriors',
+          startTime: SAMPLE_QUOTE.startTime,
+          sxEventId: null,
+          polyEventId: '99999',
+        },
+        {
+          id: 'event-pm-twin-2',
+          league: 'NBA',
+          homeTeam: 'Lakers',
+          awayTeam: 'Warriors',
+          startTime: SAMPLE_QUOTE.startTime,
+          sxEventId: null,
+          polyEventId: '88888',
+        },
+      ]);
+
+      const { upsertMarkets } = await import('./markets');
+      await upsertMarkets([SAMPLE_QUOTE]);
+
+      // No absorb: no market re-pointing, no event delete
+      expect(mockMarketUpdateMany).not.toHaveBeenCalled();
+      expect(mockEventDelete).not.toHaveBeenCalled();
+    });
+
+    it('does not absorb candidates from a different ET calendar day', async () => {
+      arrangeFreshSxEventForAbsorb();
+      // Candidate is within the ±30h SQL window but falls on a different ET day —
+      // for NBA back-to-backs (consecutive days, same teams), this prevents the
+      // wrong day's game from being merged in.
+      const oneDayLater = new Date(SAMPLE_QUOTE.startTime.getTime() + 26 * 60 * 60 * 1000);
+      mockEventFindMany.mockResolvedValue([
+        {
+          id: 'event-different-day',
+          league: 'NBA',
+          homeTeam: 'Lakers',
+          awayTeam: 'Warriors',
+          startTime: oneDayLater,
+          sxEventId: null,
+          polyEventId: '99999',
+        },
+      ]);
+
+      const { upsertMarkets } = await import('./markets');
+      await upsertMarkets([SAMPLE_QUOTE]);
+
+      expect(mockMarketUpdateMany).not.toHaveBeenCalled();
+      expect(mockEventDelete).not.toHaveBeenCalled();
+    });
+
+    it('runs for non-NBA leagues too (MLB)', async () => {
+      mockEventFindFirst.mockResolvedValue(null);
+      mockEventCreate.mockResolvedValue({
+        id: 'event-mlb-sx',
+        homeTeam: 'Rockies',
+        awayTeam: 'Mets',
+        sport: 'Baseball',
+        league: 'MLB',
+        startTime: SAMPLE_QUOTE.startTime,
+        sxEventId: 'L77777',
+        polyEventId: null,
+      });
+      mockMarketUpsert.mockResolvedValue({ id: 'market-1' });
+      mockOutcomeFindMany.mockResolvedValue([]);
+      mockOutcomeCreate.mockImplementation((args: { data: { label: string } }) =>
+        Promise.resolve({ id: `out-${args.data.label}`, ...args.data }),
+      );
+      mockEventFindMany.mockResolvedValue([
+        {
+          id: 'event-mlb-pm-twin',
+          league: 'MLB',
+          homeTeam: 'Rockies',
+          awayTeam: 'Mets',
+          startTime: SAMPLE_QUOTE.startTime,
+          sxEventId: null,
+          polyEventId: '427514',
+        },
+      ]);
+      mockMarketFindMany.mockResolvedValue([{ id: 'mlb-pm-market' }]);
+
+      const mlbQuote: MarketQuote = {
+        ...SAMPLE_QUOTE,
+        sport: 'Baseball',
+        league: 'MLB',
+        homeTeam: 'Rockies',
+        awayTeam: 'Mets',
+        sxEventId: 'L77777',
+        outcomes: [
+          { label: 'Rockies', impliedOdds: 0.45, liquidityDepth: { availableSize: 1000, topLevels: [] } },
+          { label: 'Mets', impliedOdds: 0.57, liquidityDepth: { availableSize: 1000, topLevels: [] } },
+        ],
+        betType: '12',
+      };
+      const { upsertMarkets } = await import('./markets');
+      await upsertMarkets([mlbQuote]);
+
+      expect(mockMarketUpdateMany).toHaveBeenCalledWith({
+        where: { eventId: 'event-mlb-pm-twin' },
+        data: { eventId: 'event-mlb-sx' },
+      });
+      expect(mockEventDelete).toHaveBeenCalledWith({ where: { id: 'event-mlb-pm-twin' } });
+    });
   });
 });

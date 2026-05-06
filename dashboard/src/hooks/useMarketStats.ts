@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { getMarketStats, type MarketStatsResponse } from '../lib/api';
 
-const POLL_INTERVAL_MS = 30_000;
+// Stats are 24h aggregates computed server-side from historical trades —
+// they can't be derived from the current market list. They also don't move
+// meaningfully on second-by-second timescales. Poll at the same slow cadence
+// as the markets safety-net resync; if a future change pushes these over WS,
+// drop this hook's polling entirely.
+const POLL_INTERVAL_MS = 10 * 60_000;
 
 export function useMarketStats() {
   const [data, setData] = useState<MarketStatsResponse | null>(null);

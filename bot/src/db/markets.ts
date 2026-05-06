@@ -2,6 +2,7 @@ import { prisma } from './index';
 import { recordAlias } from './teamAlias';
 import { canonicalTeamName } from '../adapters/teamNames';
 import { canonicalize } from '../router/canonicalize';
+import { emitMarketUpsert } from '../services/marketEvents';
 import type { MarketQuote } from '../types';
 import { createLogger } from '../logger';
 
@@ -22,48 +23,56 @@ export interface UpsertSummary {
 }
 
 /**
- * After an SX NBA quote resolves to an Event row, look for any PM-only twin on the
- * same ET calendar day with matching team set and absorb it. Two NBA games between
- * the same teams never happen on the same ET day, so any same-team same-ET-day
- * PM-only row is the same game.
+ * After a quote resolves to an Event row, look for a same-game twin from the
+ * other platform that didn't merge into us via Path-1 or Path-2 and absorb it.
  *
- * This covers three failure modes that all produce duplicate rows:
- *  - PM uses "midnight ET" as gameStartTime (placeholder ~19h before real tipoff),
- *    pushing the PM row outside the ±2h Path-2 window so SX forks a separate row.
- *  - PM gl (spread/total) quotes historically didn't carry polyEventId, so they
- *    landed on Path-3 and created orphan Events with no platform IDs.
- *  - PM created an event when its title-ordering config was wrong, then was
- *    corrected; SX never overwrites PM home/away so the stale flip persists.
+ * This covers failure modes that produce duplicate rows:
+ *  - One platform uses a placeholder time (e.g. PM's "midnight ET" for NBA),
+ *    pushing it outside the Path-2 ±2h window so the second platform forks
+ *    a separate row.
+ *  - A platform created an event when its title-ordering config was wrong,
+ *    then was corrected; the stale row persists.
+ *  - Historical quotes that lacked the cross-platform event-id hint went to
+ *    Path-3 and created orphan rows.
  *
- * Folding the PM markets onto the SX Event lets canonical bets unify and the
- * dashboard show combined SX+PM liquidity per outcome.
+ * Match rule:
+ *   - Same league
+ *   - Same team-pair (bidirectional)
+ *   - Same ET calendar day
+ *   - Twin is missing the just-arrived platform's id
+ *
+ * Doubleheader safeguard: if more than one candidate matches, do NOT absorb.
+ * Multiple same-day same-team rows from the other platform mean there are
+ * legitimately multiple games (e.g. an MLB doubleheader) and we can't safely
+ * guess which one is our twin. Stable platform ids will reconcile them later.
  */
-async function absorbNbaPlaceholderTwin<T extends { id: string; league: string; homeTeam: string; awayTeam: string; startTime: Date; sxEventId: string | null; polyEventId: string | null }>(
-  sxEvent: T,
+async function absorbCrossPlatformTwin<T extends { id: string; league: string; homeTeam: string; awayTeam: string; startTime: Date; sxEventId: string | null; polyEventId: string | null }>(
+  event: T,
+  arrivingPlatform: 'sx' | 'polymarket',
 ): Promise<T> {
-  if (sxEvent.league !== 'NBA') return sxEvent;
-  if (!sxEvent.sxEventId) return sxEvent;
-  // Note: don't short-circuit when sxEvent.polyEventId is set — orphan rows
-  // (no IDs at all, created by historical PM gl quotes that lacked polyEventId)
-  // can coexist with the merged row and still need to be absorbed.
+  // Only attempt the absorb when the just-arrived platform's id is set on
+  // this event — that's how we know what kind of twin to look for.
+  if (arrivingPlatform === 'sx' && !event.sxEventId) return event;
+  if (arrivingPlatform === 'polymarket' && !event.polyEventId) return event;
 
-  const targetEtDay = NY_DAY_FMT.format(sxEvent.startTime);
+  const twinIsMissing = arrivingPlatform === 'sx' ? 'sxEventId' : 'polyEventId';
+  const targetEtDay = NY_DAY_FMT.format(event.startTime);
+
   // Bound the SQL search by ±30h so we don't scan the table; the post-filter
   // below pins to the same ET calendar day.
   const bound = 30 * 60 * 60 * 1000;
   const candidates = await prisma.event.findMany({
     where: {
-      league: 'NBA',
-      sxEventId: null,
-      // Anything without sxEventId is fair game — PM-tagged rows (placeholder
-      // or real time) and orphan rows alike. SX is authoritative; merge into it.
+      league: event.league,
+      [twinIsMissing]: null,
+      id: { not: event.id },
       startTime: {
-        gte: new Date(sxEvent.startTime.getTime() - bound),
-        lte: new Date(sxEvent.startTime.getTime() + bound),
+        gte: new Date(event.startTime.getTime() - bound),
+        lte: new Date(event.startTime.getTime() + bound),
       },
       OR: [
-        { homeTeam: sxEvent.homeTeam, awayTeam: sxEvent.awayTeam },
-        { homeTeam: sxEvent.awayTeam, awayTeam: sxEvent.homeTeam },
+        { homeTeam: event.homeTeam, awayTeam: event.awayTeam },
+        { homeTeam: event.awayTeam, awayTeam: event.homeTeam },
       ],
     },
   });
@@ -71,60 +80,74 @@ async function absorbNbaPlaceholderTwin<T extends { id: string; league: string; 
   const twins = candidates.filter(
     (c) => NY_DAY_FMT.format(c.startTime) === targetEtDay,
   );
-  if (twins.length === 0) return sxEvent;
-  // Pick the first PM-tagged twin to inherit polyEventId; fall through if all
-  // are orphans (no polyEventId on any).
-  const inheritedPolyEventId = twins.find((t) => t.polyEventId)?.polyEventId ?? null;
+  if (twins.length === 0) return event;
+  if (twins.length > 1) {
+    // Doubleheader / multi-game day. Can't safely pick — leave them all alone.
+    log.info(
+      {
+        eventId: event.id,
+        league: event.league,
+        candidateIds: twins.map((t) => t.id),
+        etDay: targetEtDay,
+      },
+      'multiple same-day twins — skipping absorb (doubleheader safeguard)',
+    );
+    return event;
+  }
+
+  const twin = twins[0];
+  const inheritedSxEventId = arrivingPlatform === 'polymarket' ? twin.sxEventId : null;
+  const inheritedPolyEventId = arrivingPlatform === 'sx' ? twin.polyEventId : null;
 
   log.info(
     {
-      sxEventId: sxEvent.id,
-      twinIds: twins.map((t) => t.id),
-      polyEventIds: twins.map((t) => t.polyEventId),
+      eventId: event.id,
+      twinId: twin.id,
+      arrivingPlatform,
+      inheritedSxEventId,
+      inheritedPolyEventId,
       etDay: targetEtDay,
     },
-    'absorbing PM NBA midnight-ET twin(s) into SX event',
+    'absorbing cross-platform twin',
   );
 
-  const twinIds = twins.map((t) => t.id);
   await prisma.$transaction(async (tx) => {
-    const pmMarkets = await tx.market.findMany({
-      where: { eventId: { in: twinIds } },
+    const twinMarkets = await tx.market.findMany({
+      where: { eventId: twin.id },
       select: { id: true },
     });
-    const pmMarketIds = pmMarkets.map((m) => m.id);
-    if (pmMarketIds.length) {
-      // Outcome.canonicalBet has no cascade; null it before deleting twin events
-      // so the next link cycle re-binds against the SX event's canonical bets.
+    const twinMarketIds = twinMarkets.map((m) => m.id);
+    if (twinMarketIds.length) {
+      // Outcome.canonicalBet uses ON DELETE SET NULL, so deleting the twin
+      // would null these anyway — but we want them moved cleanly first so
+      // the next link cycle re-binds against the surviving event's bets.
       await tx.outcome.updateMany({
-        where: { marketId: { in: pmMarketIds } },
+        where: { marketId: { in: twinMarketIds } },
         data: { canonicalBetId: null },
       });
     }
     await tx.market.updateMany({
-      where: { eventId: { in: twinIds } },
-      data: { eventId: sxEvent.id },
+      where: { eventId: twin.id },
+      data: { eventId: event.id },
     });
-    if (inheritedPolyEventId && !sxEvent.polyEventId) {
-      await tx.event.update({
-        where: { id: sxEvent.id },
-        data: { polyEventId: inheritedPolyEventId },
-      });
+    const updates: { sxEventId?: string; polyEventId?: string } = {};
+    if (inheritedSxEventId && !event.sxEventId) updates.sxEventId = inheritedSxEventId;
+    if (inheritedPolyEventId && !event.polyEventId) updates.polyEventId = inheritedPolyEventId;
+    if (Object.keys(updates).length) {
+      await tx.event.update({ where: { id: event.id }, data: updates });
     }
-    await tx.event.deleteMany({ where: { id: { in: twinIds } } });
+    await tx.event.delete({ where: { id: twin.id } });
   });
 
-  return inheritedPolyEventId && !sxEvent.polyEventId
-    ? { ...sxEvent, polyEventId: inheritedPolyEventId }
-    : sxEvent;
+  const merged: T = { ...event };
+  if (inheritedSxEventId && !merged.sxEventId) merged.sxEventId = inheritedSxEventId;
+  if (inheritedPolyEventId && !merged.polyEventId) merged.polyEventId = inheritedPolyEventId;
+  return merged;
 }
 
 async function findOrCreateEvent(quote: MarketQuote & { homeTeam: string; awayTeam: string }) {
   const event = await findOrCreateEventCore(quote);
-  if (quote.platform === 'sx' && quote.league === 'NBA') {
-    return absorbNbaPlaceholderTwin(event);
-  }
-  return event;
+  return absorbCrossPlatformTwin(event, quote.platform as 'sx' | 'polymarket');
 }
 
 async function findOrCreateEventCore(quote: MarketQuote & { homeTeam: string; awayTeam: string }) {
@@ -446,6 +469,10 @@ export async function upsertMarkets(quotes: MarketQuote[]): Promise<UpsertSummar
       recordAlias(quote.awayTeam, quote.platform, quote.awayTeam, quote.league).catch((err) => {
         log.error({ err, platform: quote.platform, team: quote.awayTeam }, 'recordAlias failed');
       });
+
+      // 6. Push lifecycle event to dashboard subscribers. Fire-and-forget;
+      // emitMarketUpsert handles its own error logging.
+      emitMarketUpsert(market.id);
     } catch (err) {
       log.error({ err, externalId: quote.externalId, platform: quote.platform }, 'failed to upsert market');
     }

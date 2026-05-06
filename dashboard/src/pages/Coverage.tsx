@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMarketStats } from '../hooks/useMarketStats';
 import type { BestOddsCount, WinnerEdgeDepth } from '../lib/api';
 import { cn } from '../lib/utils';
@@ -26,12 +27,41 @@ function DonutChart({
   scopeSub,
   counts,
   edge,
+  zoomed,
 }: {
   scope: string;
   scopeSub: string;
   counts: BestOddsCount;
   edge: WinnerEdgeDepth | null;
+  zoomed: boolean;
 }) {
+  const sz = zoomed
+    ? {
+        scope: 'text-[22px]',
+        scopeSub: 'text-[18px] mt-2',
+        noData: 'text-[20px]',
+        maxW: 'max-w-[380px]',
+        pct: 'text-[72px]',
+        betterRow: 'gap-2 mt-3 text-[18px]',
+        betterLogo: 24,
+        countsRow: 'gap-6 text-[20px]',
+        countsItem: 'gap-2',
+        countsLogo: 24,
+        liq: 'text-[17px] min-h-[44px]',
+      }
+    : {
+        scope: 'text-[17px]',
+        scopeSub: 'text-[14px] mt-1.5',
+        noData: 'text-[16px]',
+        maxW: 'max-w-[320px]',
+        pct: 'text-[56px]',
+        betterRow: 'gap-1.5 mt-2.5 text-[14px]',
+        betterLogo: 18,
+        countsRow: 'gap-5 text-[16px]',
+        countsItem: 'gap-1.5',
+        countsLogo: 18,
+        liq: 'text-[14px] min-h-[36px]',
+      };
   const { sx, poly, total } = counts;
   const sxPct = total > 0 ? (sx / total) * 100 : 0;
   const polyPct = total > 0 ? (poly / total) * 100 : 0;
@@ -51,14 +81,14 @@ function DonutChart({
   return (
     <div className="flex-1 min-w-0 flex flex-col items-center justify-between gap-4 py-2">
       <div className="text-center">
-        <div className="font-mono text-[14px] tracking-[0.14em] text-tm-tx font-semibold">{scope}</div>
-        <div className="font-mono text-[12px] text-tm-tx-mut mt-1 tracking-wider">{scopeSub}</div>
+        <div className={cn('font-mono tracking-[0.14em] text-tm-tx font-semibold', sz.scope)}>{scope}</div>
+        <div className={cn('font-mono text-tm-tx-mut tracking-wider', sz.scopeSub)}>{scopeSub}</div>
       </div>
 
       {total === 0 ? (
-        <div className="flex items-center justify-center font-mono text-[14px] text-tm-tx-mut min-h-[200px]">— no data</div>
+        <div className={cn('flex items-center justify-center font-mono text-tm-tx-mut min-h-[200px]', sz.noData)}>— no data</div>
       ) : (
-        <div className="relative w-full max-w-[320px] aspect-square">
+        <div className={cn('relative w-full aspect-square', sz.maxW)}>
           <svg
             viewBox="0 0 100 100"
             className="w-full h-full -rotate-90"
@@ -99,11 +129,11 @@ function DonutChart({
             )}
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center font-mono">
-            <span className={cn('text-[44px] font-bold leading-none tabular-nums', winColor)}>
+            <span className={cn('font-bold leading-none tabular-nums', sz.pct, winColor)}>
               {winPct}%
             </span>
-            <span className="flex items-center gap-1.5 mt-2 text-[12px] text-tm-tx-dim tracking-[0.18em]">
-              <VenueLogo platform={win === 'sx' ? 'sx' : 'polymarket'} size={15} />
+            <span className={cn('flex items-center text-tm-tx-dim tracking-[0.18em]', sz.betterRow)}>
+              <VenueLogo platform={win === 'sx' ? 'sx' : 'polymarket'} size={sz.betterLogo} />
               <span>BETTER</span>
             </span>
           </div>
@@ -111,22 +141,22 @@ function DonutChart({
       )}
 
       {total > 0 && (
-        <div className="flex items-center gap-5 font-mono text-[13px]">
-          <span className="flex items-center gap-1.5">
-            <VenueLogo platform="sx" size={15} />
+        <div className={cn('flex items-center font-mono', sz.countsRow)}>
+          <span className={cn('flex items-center', sz.countsItem)}>
+            <VenueLogo platform="sx" size={sz.countsLogo} />
             <span className="text-tm-sx font-bold tabular-nums">{sx}</span>
             <span className="text-tm-tx-mut">· {sxRound}%</span>
           </span>
           <span className="text-tm-bd-st">·</span>
-          <span className="flex items-center gap-1.5">
-            <VenueLogo platform="polymarket" size={15} />
+          <span className={cn('flex items-center', sz.countsItem)}>
+            <VenueLogo platform="polymarket" size={sz.countsLogo} />
             <span className="text-tm-poly font-bold tabular-nums">{poly}</span>
             <span className="text-tm-tx-mut">· {polyRound}%</span>
           </span>
         </div>
       )}
 
-      <div className="font-mono text-[12px] text-center min-h-[32px]">
+      <div className={cn('font-mono text-center', sz.liq)}>
         {edge ? (
           <>
             <div>
@@ -149,6 +179,7 @@ function DonutChart({
 
 export function Coverage() {
   const { data, loading, error } = useMarketStats();
+  const [zoomed, setZoomed] = useState(false);
 
   if (loading) {
     return (
@@ -194,13 +225,13 @@ export function Coverage() {
               ) : (
                 <>
                   <div className="font-mono leading-none flex items-center gap-3">
-                    <span className={cn('text-[36px] font-bold leading-none', headlineColor)}>{headlinePct}%</span>
-                    <span className="text-[13px] tracking-[0.1em] text-tm-tx-dim flex items-center gap-1.5">
+                    <span className={cn('text-[44px] font-bold leading-none', headlineColor)}>{headlinePct}%</span>
+                    <span className="text-[15px] tracking-[0.1em] text-tm-tx-dim flex items-center gap-1.5">
                       OUTCOMES PRICED BETTER ON
-                      <VenueLogo platform={headlineWinner === 'sx' ? 'sx' : 'polymarket'} size={16} />
+                      <VenueLogo platform={headlineWinner === 'sx' ? 'sx' : 'polymarket'} size={18} />
                     </span>
                   </div>
-                  <div className="font-mono text-[13px] text-tm-tx-dim mt-1.5">
+                  <div className="font-mono text-[15px] text-tm-tx-dim mt-2">
                     {headlineEdge && (
                       <>
                         <b className={headlineEdge.venue === 'sx' ? 'text-tm-sx' : 'text-tm-poly'}>
@@ -216,21 +247,37 @@ export function Coverage() {
               )}
             </div>
 
-            <span className="font-mono text-[12px] tracking-[0.2em] text-tm-tx-mut justify-self-start lg:justify-self-end whitespace-nowrap rounded-sm border border-tm-bd-st px-2.5 py-1">
+            <span className="font-mono text-[13px] tracking-[0.2em] text-tm-tx-mut justify-self-start lg:justify-self-end whitespace-nowrap rounded-sm border border-tm-bd-st px-3 py-1.5">
               NEXT 24H
             </span>
           </section>
 
           {/* Donut charts */}
           <section className="flex-1 min-h-[420px] rounded-[var(--tm-rad)] border border-tm-bd bg-tm-bg-el px-5 py-4 flex flex-col">
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="font-mono text-[12px] tracking-[0.18em] text-tm-tx-mut">BEST ODDS · WHO PRICED HIGHER</span>
-              <span
-                className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-tm-bd-st text-tm-tx-mut text-[11px] font-bold cursor-help"
-                title="Per outcome on games listed on both platforms in the next 24h, which side offers the better price — higher decimal odds for the bettor (SX wins ties). Liquidity-at-better-price is the average dollar size on the winning venue's ladder priced strictly better than the other side's best, over the outcomes the winner won."
+            <div className="flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[14px] tracking-[0.18em] text-tm-tx-mut">BEST ODDS · WHO PRICED HIGHER</span>
+                <span
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-tm-bd-st text-tm-tx-mut text-[12px] font-bold cursor-help"
+                  title="Per outcome on games listed on both platforms in the next 24h, which side offers the better price — higher decimal odds for the bettor (SX wins ties). Liquidity-at-better-price is the average dollar size on the winning venue's ladder priced strictly better than the other side's best, over the outcomes the winner won."
+                >
+                  ?
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setZoomed((z) => !z)}
+                aria-pressed={zoomed}
+                title={zoomed ? 'Reset to default size' : 'Enlarge text and logos for screenshots'}
+                className={cn(
+                  'font-mono text-[11px] tracking-[0.15em] px-2.5 py-1 rounded-sm border transition-colors',
+                  zoomed
+                    ? 'border-tm-tx-mut text-tm-tx bg-tm-bg'
+                    : 'border-tm-bd-st text-tm-tx-mut hover:text-tm-tx hover:border-tm-tx-mut',
+                )}
               >
-                ?
-              </span>
+                {zoomed ? 'ZOOM ON' : 'ZOOM'}
+              </button>
             </div>
 
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch min-h-0 mt-3 divide-y md:divide-y-0 md:divide-x divide-tm-bd">
@@ -239,12 +286,14 @@ export function Coverage() {
                 scopeSub={`ML, 1X2 · ${data.bestOddsMatched24h.total} outcomes`}
                 counts={data.bestOddsMatched24h}
                 edge={data.edgeMatched24h}
+                zoomed={zoomed}
               />
               <DonutChart
                 scope="ALL MARKET TYPES"
                 scopeSub={`spreads, totals, alts · ${data.bestOddsAllMatched24h.total} outcomes`}
                 counts={data.bestOddsAllMatched24h}
                 edge={data.edgeAllMatched24h}
+                zoomed={zoomed}
               />
             </div>
           </section>

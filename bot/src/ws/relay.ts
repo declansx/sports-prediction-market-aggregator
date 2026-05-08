@@ -47,7 +47,17 @@ interface PolyBookBroadcast {
 }
 
 export function startWsRelay(server: http.Server): void {
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    // permessage-deflate compresses every frame. The initial markets snapshot
+    // is ~3.9 MB raw, ~700 KB compressed (~5.5×). The thresholds prevent
+    // CPU waste on tiny frames (most odds updates are <100 bytes).
+    perMessageDeflate: {
+      zlibDeflateOptions: { level: 6 },
+      threshold: 1024,
+    },
+  });
 
   wss.on('connection', (ws: WebSocket) => {
     const bookSubs = new Set<string>();

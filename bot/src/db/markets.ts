@@ -356,6 +356,32 @@ export async function upsertMarkets(quotes: MarketQuote[]): Promise<UpsertSummar
       // 1. Find or create the canonical Event (handles home/away swap + name normalization)
       const event = await findOrCreateEvent(quote);
 
+      // Pre-fetch the Market row so we can detect whether anything actually
+      // changed and skip the dashboard broadcast on no-op upserts. Without
+      // this gate, every 30s sync cycle re-emits a marketUpsert for every
+      // market in the DB — at thousands of markets that's ~MB/s of pointless
+      // WebSocket traffic out of the bot.
+      const newMainLine = quote.mainLine ?? true;
+      const newLine = quote.line ?? null;
+      const existingMarket = await prisma.market.findUnique({
+        where: {
+          platform_externalId: { platform: quote.platform, externalId: quote.externalId },
+        },
+      });
+      let materialChange = !existingMarket;
+      if (existingMarket) {
+        if (
+          existingMarket.eventId !== event.id ||
+          existingMarket.status !== 'active' ||
+          existingMarket.betType !== quote.betType ||
+          existingMarket.line !== newLine ||
+          existingMarket.mainLine !== newMainLine ||
+          existingMarket.startTime.getTime() !== quote.startTime.getTime()
+        ) {
+          materialChange = true;
+        }
+      }
+
       // 2. Upsert the Market linked to the Event
       const market = await prisma.market.upsert({
         where: {
@@ -369,7 +395,7 @@ export async function upsertMarkets(quotes: MarketQuote[]): Promise<UpsertSummar
           status: 'active',
           betType: quote.betType,
           line: quote.line,
-          mainLine: quote.mainLine ?? true,
+          mainLine: newMainLine,
         },
         update: {
           eventId: event.id,
@@ -377,7 +403,7 @@ export async function upsertMarkets(quotes: MarketQuote[]): Promise<UpsertSummar
           status: 'active',
           betType: quote.betType,
           line: quote.line,
-          mainLine: quote.mainLine ?? true,
+          mainLine: newMainLine,
         },
       });
 
@@ -395,6 +421,15 @@ export async function upsertMarkets(quotes: MarketQuote[]): Promise<UpsertSummar
         if (existing) {
           outcomeId = existing.id;
           alreadyLinked = existing.canonicalBetId !== null;
+          // Track externalId changes — those alter the dashboard's outcome
+          // identity (used by trade routing). Currentodds/liquidity flow over
+          // the live odds channels, so changes there don't need a marketUpsert.
+          if (
+            outcomeData.externalId &&
+            outcomeData.externalId !== existing.externalId
+          ) {
+            materialChange = true;
+          }
           await prisma.outcome.update({
             where: { id: existing.id },
             data: {
@@ -406,6 +441,8 @@ export async function upsertMarkets(quotes: MarketQuote[]): Promise<UpsertSummar
             },
           });
         } else {
+          // New outcome — dashboard needs to know.
+          materialChange = true;
           const created = await prisma.outcome.create({
             data: {
               marketId: market.id,
@@ -460,6 +497,7 @@ export async function upsertMarkets(quotes: MarketQuote[]): Promise<UpsertSummar
       });
       if (deleted.count > 0) {
         log.info({ count: deleted.count, externalId: quote.externalId }, 'removed stale outcomes');
+        materialChange = true;
       }
 
       // 5. Record team aliases outside the transaction (best-effort, non-fatal)
@@ -470,9 +508,13 @@ export async function upsertMarkets(quotes: MarketQuote[]): Promise<UpsertSummar
         log.error({ err, platform: quote.platform, team: quote.awayTeam }, 'recordAlias failed');
       });
 
-      // 6. Push lifecycle event to dashboard subscribers. Fire-and-forget;
-      // emitMarketUpsert handles its own error logging.
-      emitMarketUpsert(market.id);
+      // 6. Push lifecycle event to dashboard subscribers ONLY when something
+      // dashboard-visible actually changed. Currentodds + liquidity flow on
+      // the live odds channels, so we skip emit when the upsert is a no-op
+      // refresh from the 30s sync.
+      if (materialChange) {
+        emitMarketUpsert(market.id);
+      }
     } catch (err) {
       log.error({ err, externalId: quote.externalId, platform: quote.platform }, 'failed to upsert market');
     }

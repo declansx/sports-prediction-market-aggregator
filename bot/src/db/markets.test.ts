@@ -7,6 +7,7 @@ const mockEventUpdate = vi.fn();
 const mockEventCreate = vi.fn();
 const mockEventDelete = vi.fn();
 const mockMarketUpsert = vi.fn();
+const mockMarketFindUnique = vi.fn();
 const mockMarketFindMany = vi.fn();
 const mockMarketUpdateMany = vi.fn();
 const mockOutcomeFindMany = vi.fn();
@@ -31,6 +32,7 @@ vi.mock('./index', () => ({
     },
     market: {
       upsert: mockMarketUpsert,
+      findUnique: mockMarketFindUnique,
       findMany: mockMarketFindMany,
       updateMany: mockMarketUpdateMany,
     },
@@ -54,6 +56,12 @@ vi.mock('./index', () => ({
 // teamAlias.ts calls canonicalTeamName — stub it out
 vi.mock('../adapters/teamNames', () => ({
   canonicalTeamName: (name: string) => name,
+}));
+
+const mockEmitMarketUpsert = vi.fn();
+vi.mock('../services/marketEvents', () => ({
+  emitMarketUpsert: (id: string) => mockEmitMarketUpsert(id),
+  emitMarketRemoved: vi.fn(),
 }));
 
 const SAMPLE_QUOTE: MarketQuote = {
@@ -118,6 +126,10 @@ describe('upsertMarkets', () => {
     mockMarketUpdateMany.mockResolvedValue({ count: 0 });
     mockOutcomeUpdateMany.mockResolvedValue({ count: 0 });
     mockEventDelete.mockResolvedValue({});
+    // Default: market is brand-new (no pre-existing row) so the upsert is a
+    // create and emitMarketUpsert fires. Tests that exercise the no-op path
+    // override this to return a row identical to the incoming quote.
+    mockMarketFindUnique.mockResolvedValue(null);
   });
 
   it('creates event then market then new outcomes when none exist', async () => {
@@ -290,6 +302,113 @@ describe('upsertMarkets', () => {
     // Asserting "no throw" is the meaningful behavior — the error itself is
     // reported via the logger (verified by manual debug-level inspection).
     expect(mockMarketUpsert).not.toHaveBeenCalled();
+  });
+
+  // ─── emitMarketUpsert gating ──────────────────────────────────────────────
+  describe('emitMarketUpsert gating', () => {
+    it('emits when the market is brand-new', async () => {
+      mockEmitMarketUpsert.mockClear();
+      mockMarketFindUnique.mockResolvedValue(null); // new market
+      mockMarketUpsert.mockResolvedValue({ id: 'market-new' });
+      mockOutcomeFindMany.mockResolvedValue([]);
+      mockOutcomeCreate.mockImplementation((args: { data: { label: string } }) =>
+        Promise.resolve({ id: `out-${args.data.label}`, ...args.data }),
+      );
+
+      const { upsertMarkets } = await import('./markets');
+      await upsertMarkets([SAMPLE_QUOTE]);
+
+      expect(mockEmitMarketUpsert).toHaveBeenCalledWith('market-new');
+    });
+
+    it('does NOT emit when the upsert is a no-op refresh (no field changes)', async () => {
+      mockEmitMarketUpsert.mockClear();
+      // Pre-existing market with the SAME values the quote will write —
+      // every field matches, so nothing dashboard-visible has changed.
+      mockMarketFindUnique.mockResolvedValue({
+        id: 'market-existing',
+        eventId: 'event-1',
+        status: 'active',
+        betType: SAMPLE_QUOTE.betType,
+        line: SAMPLE_QUOTE.line ?? null,
+        mainLine: true,
+        startTime: SAMPLE_QUOTE.startTime,
+      });
+      mockMarketUpsert.mockResolvedValue({ id: 'market-existing' });
+      // Outcomes already exist with matching labels and externalIds (no
+      // change there either). The handler should not fire emit.
+      mockOutcomeFindMany.mockResolvedValue(
+        SAMPLE_QUOTE.outcomes.map((o) => ({
+          id: `out-${o.label}`,
+          label: o.label,
+          externalId: o.externalId ?? null,
+          canonicalBetId: 'cb-existing',
+        })),
+      );
+
+      const { upsertMarkets } = await import('./markets');
+      await upsertMarkets([SAMPLE_QUOTE]);
+
+      expect(mockEmitMarketUpsert).not.toHaveBeenCalled();
+    });
+
+    it('emits when an existing market changes betType', async () => {
+      mockEmitMarketUpsert.mockClear();
+      mockMarketFindUnique.mockResolvedValue({
+        id: 'market-existing',
+        eventId: 'event-1',
+        status: 'active',
+        betType: 'spread', // different from incoming '1x2'
+        line: null,
+        mainLine: true,
+        startTime: SAMPLE_QUOTE.startTime,
+      });
+      mockMarketUpsert.mockResolvedValue({ id: 'market-existing' });
+      mockOutcomeFindMany.mockResolvedValue(
+        SAMPLE_QUOTE.outcomes.map((o) => ({
+          id: `out-${o.label}`,
+          label: o.label,
+          externalId: null,
+          canonicalBetId: 'cb-existing',
+        })),
+      );
+
+      const { upsertMarkets } = await import('./markets');
+      await upsertMarkets([SAMPLE_QUOTE]);
+
+      expect(mockEmitMarketUpsert).toHaveBeenCalledWith('market-existing');
+    });
+
+    it('emits when a new outcome is added to an existing market', async () => {
+      mockEmitMarketUpsert.mockClear();
+      mockMarketFindUnique.mockResolvedValue({
+        id: 'market-existing',
+        eventId: 'event-1',
+        status: 'active',
+        betType: SAMPLE_QUOTE.betType,
+        line: SAMPLE_QUOTE.line ?? null,
+        mainLine: true,
+        startTime: SAMPLE_QUOTE.startTime,
+      });
+      mockMarketUpsert.mockResolvedValue({ id: 'market-existing' });
+      // Only the first outcome currently exists — the second is new.
+      mockOutcomeFindMany.mockResolvedValue([
+        {
+          id: 'out-Lakers',
+          label: 'Lakers',
+          externalId: null,
+          canonicalBetId: 'cb-existing',
+        },
+      ]);
+      mockOutcomeCreate.mockImplementation((args: { data: { label: string } }) =>
+        Promise.resolve({ id: `out-${args.data.label}`, ...args.data }),
+      );
+
+      const { upsertMarkets } = await import('./markets');
+      await upsertMarkets([SAMPLE_QUOTE]);
+
+      expect(mockEmitMarketUpsert).toHaveBeenCalledWith('market-existing');
+    });
   });
 
   // ─── absorbCrossPlatformTwin ──────────────────────────────────────────────

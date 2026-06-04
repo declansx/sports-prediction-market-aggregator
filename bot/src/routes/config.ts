@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../db';
 import { orderBookCache } from '../services/orderBookCache';
+import { polymarketBookCache } from '../services/polymarketBookCache';
 import { createLogger } from '../logger';
 
 const log = createLogger('config');
@@ -41,6 +42,7 @@ router.put('/api/config/:key', async (req: Request, res: Response) => {
     });
     if (key === 'orderBookLevels') {
       orderBookCache.setTopLevels(parseInt(value, 10));
+      polymarketBookCache.setTopLevels(parseInt(value, 10));
     }
     res.json(row);
   } catch (err) {

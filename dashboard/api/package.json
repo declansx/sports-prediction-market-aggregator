@@ -1,0 +1,4 @@
+{
+  "//": "Forces CommonJS for the serverless function. The dashboard package is type:module (ESM) for Vite, but the bot it imports compiles to CommonJS (bot tsconfig module:CommonJS). Under ESM the function fails to resolve the bot's extensionless imports; as CommonJS it resolves them natively — the same way the bot runs itself.",
+  "type": "commonjs"
+}

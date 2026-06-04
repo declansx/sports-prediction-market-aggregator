@@ -18,6 +18,9 @@ dist-public/
 # Prisma generated client
 bot/node_modules/.prisma/
 
+# Local serverless-function test harness (not deployed)
+dashboard/serverless/_localtest.cjs
+
 # OS
 .DS_Store
 Thumbs.db

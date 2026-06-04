@@ -489,5 +489,18 @@ export function unsubscribeFromPolyBestOdds(tokenId: string): void {
 export function startPolymarketWsService(): void {
   if (started) return;
   started = true;
+  // Seed the book cache's level count from config once at startup. The cache
+  // no longer reads the DB itself (so the read-only public build can reuse the
+  // Polymarket adapter without Prisma); live changes still flow via the config
+  // route's setTopLevels call.
+  void (async () => {
+    try {
+      const row = await prisma.botConfig.findUnique({ where: { key: 'orderBookLevels' } });
+      const parsed = row ? parseInt(row.value, 10) : NaN;
+      if (!isNaN(parsed)) polymarketBookCache.setTopLevels(parsed);
+    } catch (err) {
+      log.warn({ err }, 'failed to seed orderBookLevels — using default');
+    }
+  })();
   log.info('service started (lazy socket, opens on first subscribe)');
 }

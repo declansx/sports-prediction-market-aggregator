@@ -1,10 +1,8 @@
 import { EventEmitter } from 'events';
-import { prisma } from '../db';
 
 const DEFAULT_TOP_LEVELS = 10;
 const MIN_TOP_LEVELS = 3;
 const MAX_TOP_LEVELS = 25;
-const CONFIG_CACHE_MS = 5_000;
 
 function applyFee(p: number, feeRate: number): number {
   if (feeRate === 0) return p;
@@ -33,32 +31,14 @@ export class PolymarketBookCache extends EventEmitter {
   // (un-adjusted), not the legacy 0.03 — better to under-show fees than to guess wrong post-V2.
   private feeRates = new Map<string, number>();
   private topLevels = DEFAULT_TOP_LEVELS;
-  private configFetchedAt = 0;
-  private configInflight: Promise<void> | null = null;
 
-  async refreshTopLevels(): Promise<void> {
-    if (Date.now() - this.configFetchedAt < CONFIG_CACHE_MS) return;
-    if (this.configInflight) return this.configInflight;
-    this.configInflight = (async () => {
-      try {
-        const row = await prisma.botConfig.findUnique({ where: { key: 'orderBookLevels' } });
-        const parsed = row ? parseInt(row.value, 10) : NaN;
-        if (!isNaN(parsed)) {
-          this.topLevels = Math.max(MIN_TOP_LEVELS, Math.min(MAX_TOP_LEVELS, parsed));
-        }
-        this.configFetchedAt = Date.now();
-      } catch {
-        this.configFetchedAt = Date.now();
-      } finally {
-        this.configInflight = null;
-      }
-    })();
-    return this.configInflight;
-  }
-
+  // topLevels is pushed in via setTopLevels() — at startup from botConfig and
+  // live from the config route — rather than read from the DB here. That keeps
+  // this cache free of any DB import, so the read-only public build can reuse
+  // the Polymarket adapter (which depends on this cache) in a serverless
+  // function without dragging Prisma into the bundle.
   setTopLevels(n: number): void {
     this.topLevels = Math.max(MIN_TOP_LEVELS, Math.min(MAX_TOP_LEVELS, n));
-    this.configFetchedAt = Date.now();
   }
 
   getTopLevels(): number {
@@ -103,7 +83,6 @@ export class PolymarketBookCache extends EventEmitter {
       if (size > 0) entry.bids.set(b.price, size);
     }
     entry.updatedAt = updatedAt;
-    void this.refreshTopLevels();
     this.emitUpdate(tokenId);
   }
 
@@ -123,7 +102,6 @@ export class PolymarketBookCache extends EventEmitter {
     }
     if (!changed) return;
     entry.updatedAt = updatedAt;
-    void this.refreshTopLevels();
     this.emitUpdate(tokenId);
   }
 

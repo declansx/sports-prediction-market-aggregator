@@ -7,6 +7,13 @@ import { getMarkets, type Market } from '../lib/api';
 // never stuck on a blank loading state.
 const WS_SNAPSHOT_FALLBACK_MS = 3_000;
 
+// Public read-only build has no bot/relay — it polls the edge-cached
+// GET /api/markets serverless function instead of receiving WS deltas. The
+// edge CDN holds the response ~60s, so this cadence costs ~one upstream fetch
+// per minute no matter how many visitors are polling.
+const PUBLIC_MODE = import.meta.env.VITE_PUBLIC_MODE === 'true';
+const PUBLIC_POLL_MS = 60_000;
+
 /**
  * Source-of-truth hook for the dashboard's market list.
  *
@@ -26,6 +33,29 @@ export function useMarketList(): { markets: Market[]; loading: boolean } {
   const snapshotReceived = useRef(false);
 
   useEffect(() => {
+    // Public mode: no WS relay exists. Poll the edge-cached REST endpoint on
+    // an interval and replace the list wholesale each time.
+    if (PUBLIC_MODE) {
+      let cancelled = false;
+      const load = () => {
+        getMarkets()
+          .then((data) => {
+            if (cancelled) return;
+            setMarkets(data);
+            setLoading(false);
+          })
+          .catch(() => {
+            // Keep the last good list on a transient failure; next tick retries.
+          });
+      };
+      load();
+      const id = setInterval(load, PUBLIC_POLL_MS);
+      return () => {
+        cancelled = true;
+        clearInterval(id);
+      };
+    }
+
     const off = wsBus.onMarketLifecycle((msg) => {
       if (msg.type === 'marketsSnapshot') {
         cache.current = new Map(msg.data.map((m) => [m.id, m]));

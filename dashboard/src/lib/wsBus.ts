@@ -92,6 +92,11 @@ const WS_URL = (() => {
   return `${proto}//${window.location.host}/ws`;
 })();
 
+// Public (read-only) build is served statically with no bot behind it, so the
+// real-time relay doesn't exist. In that mode the bus stays dormant and the
+// dashboard refreshes via REST polling instead.
+const PUBLIC_MODE = import.meta.env.VITE_PUBLIC_MODE === 'true';
+
 class WsBus {
   private ws: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -116,6 +121,7 @@ class WsBus {
   private polyOddsSubRefs = new Map<string, number>();
 
   private connect(): void {
+    if (PUBLIC_MODE) return;
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
 
     const ws = new WebSocket(WS_URL);
@@ -206,6 +212,10 @@ class WsBus {
   }
 
   private ensureConnected(): void {
+    // Public read-only dashboard has no bot/relay to connect to — it polls
+    // GET /api/markets instead (see useMarketList). Skip the socket entirely
+    // so we don't spin a doomed 3s reconnect loop against a dead endpoint.
+    if (PUBLIC_MODE) return;
     if (!this.ws) this.connect();
   }
 

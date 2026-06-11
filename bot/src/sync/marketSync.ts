@@ -4,13 +4,13 @@ import { fetchPolymarketMarkets } from '../adapters/polymarket';
 import { polymarketOddsCache } from '../services/polymarketOddsCache';
 import { upsertMarkets } from '../db/markets';
 import { emitMarketRemoved } from '../services/marketEvents';
-import { EPL, UCL, UEL, COPA_LIBERTADORES, LA_LIGA, SERIE_A, BUNDESLIGA, EREDIVISIE, LIGUE_1, NBA, MLB, NHL, type LeagueConfig } from '../leagues';
+import { EPL, UCL, UEL, COPA_LIBERTADORES, LA_LIGA, SERIE_A, BUNDESLIGA, EREDIVISIE, LIGUE_1, WORLD_CUP, NBA, MLB, NHL, type LeagueConfig } from '../leagues';
 import type { MarketQuote } from '../types';
 import { createLogger } from '../logger';
 
 const log = createLogger('sync');
 
-export const SYNCED_LEAGUES: LeagueConfig[] = [EPL, UCL, UEL, COPA_LIBERTADORES, LA_LIGA, SERIE_A, BUNDESLIGA, EREDIVISIE, LIGUE_1, NBA, MLB, NHL];
+export const SYNCED_LEAGUES: LeagueConfig[] = [EPL, UCL, UEL, COPA_LIBERTADORES, LA_LIGA, SERIE_A, BUNDESLIGA, EREDIVISIE, LIGUE_1, WORLD_CUP, NBA, MLB, NHL];
 
 const DEFAULT_POLL_INTERVAL_SECONDS = 30;
 

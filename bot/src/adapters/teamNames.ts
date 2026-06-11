@@ -287,6 +287,30 @@ const MANUAL: Record<string, string> = {
   'stade rennais': 'Rennes',
   'rennes': 'Rennes',
 
+  // World Cup national teams — SX and Polymarket spell several countries differently.
+  // Each variant (SX market spelling + Polymarket spelling) maps to one canonical
+  // string so the same fixture links across platforms. Confirmed against live
+  // SX league 1715 fixtures + Poly series 11433. Nations whose SX fixtures aren't
+  // posted yet (e.g. Czechia→?Czech Republic, DR Congo) are intentionally omitted
+  // until their SX spelling can be confirmed from a live fixture.
+  'usa': 'USA',
+  'united states': 'USA',
+  'ivory coast': 'Ivory Coast',
+  "côte d'ivoire": 'Ivory Coast',
+  "cote d'ivoire": 'Ivory Coast',
+  'south korea': 'South Korea',
+  'korea republic': 'South Korea',
+  'iran': 'Iran',
+  'ir iran': 'Iran',
+  'turkey': 'Türkiye',
+  'turkiye': 'Türkiye',
+  'türkiye': 'Türkiye',
+  'cape verde': 'Cape Verde',
+  'cabo verde': 'Cape Verde',
+  'bosnia-herz': 'Bosnia-Herzegovina',
+  'bosnia-herzegovina': 'Bosnia-Herzegovina',
+  'bosnia': 'Bosnia-Herzegovina',
+
   // NBA — Polymarket uses nickname-only (e.g. "Raptors"); SX Bet uses "City Nickname" full form.
   // These mappings make both platforms resolve to the same canonical name for DB matching.
   'hawks': 'Atlanta Hawks',

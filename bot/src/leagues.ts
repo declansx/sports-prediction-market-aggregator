@@ -98,6 +98,18 @@ export const LIGUE_1: LeagueConfig = {
   polymarket: { seriesId: 10195, titleOrdering: 'home' },
 };
 
+export const WORLD_CUP: LeagueConfig = {
+  name: 'World Cup',
+  sport: 'Soccer',
+  hasDraw: true,
+  // SX league 1715 = "FIFA World Cup". Soccer (default sportId 5), type-1 markets
+  // carry the Tie outcome, live-enabled.
+  sxbet: { leagueId: 1715 },
+  // Gamma series 11433 (sport slug "fifwc"). National-team titles list HOME first,
+  // like the club soccer leagues.
+  polymarket: { seriesId: 11433, titleOrdering: 'home' },
+};
+
 export const NBA: LeagueConfig = {
   name: 'NBA',
   sport: 'Basketball',

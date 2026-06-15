@@ -139,6 +139,15 @@ export const getMarkets = () => apiFetch<Market[]>('/api/markets');
 export const getOrderBook = (outcomeId: string) =>
   apiFetch<OrderBookResponse>(`/api/trade/orderbook?outcomeId=${encodeURIComponent(outcomeId)}`);
 
+// Public read-only build: the serverless orderbook fn takes precise per-venue
+// book pointers (SX "${hash}:${side}", Poly tokenId) instead of a DB outcome id.
+export const getOrderBookByPointers = (sxBook?: string, polyBook?: string) => {
+  const params = new URLSearchParams();
+  if (sxBook) params.set('sx', sxBook);
+  if (polyBook) params.set('poly', polyBook);
+  return apiFetch<OrderBookResponse>(`/api/trade/orderbook?${params.toString()}`);
+};
+
 export const getTradePreview = (outcomeId: string, side: string, size: number) =>
   apiFetch<AllocationPlan>(`/api/trade/preview?outcomeId=${encodeURIComponent(outcomeId)}&side=${encodeURIComponent(side)}&size=${size}`);
 

@@ -88,7 +88,7 @@ async function fetchAllActiveMarkets(leagueId: number): Promise<SxMarket[]> {
   return markets;
 }
 
-async function fetchOrdersForHashes(hashes: string[]): Promise<SxOrder[]> {
+export async function fetchOrdersForHashes(hashes: string[]): Promise<SxOrder[]> {
   const params = new URLSearchParams({
     marketHashes: hashes.join(','),
     baseToken: BASE_TOKEN,
@@ -100,7 +100,7 @@ async function fetchOrdersForHashes(hashes: string[]): Promise<SxOrder[]> {
   return body.data;
 }
 
-function buildOutcome(
+export function buildOutcome(
   label: string,
   orders: SxOrder[],
   // takerBettingOutcomeOne=true means taker bets outcomeOne (needs makers on outcomeTwo)

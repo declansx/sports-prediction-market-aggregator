@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd .. && npm install",
   "functions": {
-    "api/markets.js": { "maxDuration": 60 }
+    "api/markets.js": { "maxDuration": 60 },
+    "api/trade/orderbook.js": { "maxDuration": 30 }
   },
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }

@@ -20,7 +20,7 @@ const TOP_LEVELS = 5;
 // the per-market data Polymarket returns is in practice constant within a
 // category. The smoke check below verifies the assumption once per cycle and
 // loudly warns if Polymarket ever ships a market with a different rate.
-const SPORTS_FEE_RATE = 0.03;
+export const SPORTS_FEE_RATE = 0.03;
 const SMOKE_CHECK_TIMEOUT_MS = 6_000;
 
 interface GammaMarket {
@@ -121,7 +121,7 @@ async function fetchLeagueEvents(league: LeagueConfig): Promise<GammaEvent[]> {
   return events;
 }
 
-async function fetchClobBook(tokenId: string): Promise<ClobBook | null> {
+export async function fetchClobBook(tokenId: string): Promise<ClobBook | null> {
   try {
     const res = await fetch(`${CLOB_API}/book?token_id=${encodeURIComponent(tokenId)}`);
     if (!res.ok) return null;
@@ -184,7 +184,7 @@ async function fetchClobBooksForTokens(
   return result;
 }
 
-function buildOutcomeFromBook(
+export function buildOutcomeFromBook(
   label: string,
   book: ClobBook | undefined,
   fallbackPrice: number,

@@ -771,8 +771,19 @@ export function Markets() {
   }, [filteredGroups]);
 
   const handleOddsClick = useCallback((outcomeId: string, label: string, matchName: string) => {
-    setSelection((prev) => (prev?.outcomeId === outcomeId ? null : { outcomeId, label, matchName }));
-  }, []);
+    setSelection((prev) => {
+      if (prev?.outcomeId === outcomeId) return null;
+      // Look up the row's precise book pointers (used only by the public
+      // build's orderbook endpoint; harmless in the full build).
+      let sxBook: string | undefined;
+      let polyBook: string | undefined;
+      for (const g of allGroups) {
+        const row = g.outcomes.find((o) => o.outcomeId === outcomeId);
+        if (row) { sxBook = row.sxBook; polyBook = row.polyBook; break; }
+      }
+      return { outcomeId, label, matchName, sxBook, polyBook };
+    });
+  }, [allGroups]);
 
   const handleSelectInPlay = useCallback(() => {
     setInPlayMode(true);

@@ -4,6 +4,8 @@ interface BetSlipSelection {
   outcomeId: string;
   label: string;
   matchName: string;
+  sxBook?: string;
+  polyBook?: string;
 }
 
 interface BetSlipProps {
@@ -50,6 +52,8 @@ export function BetSlip({ selection, onClose, onTradeExecuted }: BetSlipProps) {
           <TradePanel
             outcomeId={selection.outcomeId}
             outcomeLabel={selection.label}
+            sxBook={selection.sxBook}
+            polyBook={selection.polyBook}
             onTradeExecuted={onTradeExecuted}
             hideHeader
           />

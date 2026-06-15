@@ -19,6 +19,11 @@ export interface OutcomeRow {
   outcomeId: string;
   mainLine: boolean;
   canonicalKey: string | null;
+  // Precise per-venue book pointers (PublicOutcome.externalId) for the public
+  // read-only orderbook endpoint: SX "${marketHash}:${side}", Poly tokenId.
+  // First sibling seen per venue wins (any one is a valid book pointer).
+  sxBook?: string;
+  polyBook?: string;
 }
 
 function outcomeMergeKey(
@@ -50,6 +55,10 @@ export interface BetSlipSelection {
   outcomeId: string;
   label: string;
   matchName: string;
+  // Carried only for the public read-only build, where the orderbook endpoint
+  // takes precise book pointers instead of a DB outcome id.
+  sxBook?: string;
+  polyBook?: string;
 }
 
 export function matchGroupKey(
@@ -107,8 +116,10 @@ export function groupMarkets(markets: Market[]): MatchGroup[] {
       const next = { impliedOdds: o.impliedOdds, availableSize: o.availableSize };
       if (m.platform === 'sx') {
         existing.sx = mergePlatformOdds(existing.sx, next);
+        if (o.externalId && !existing.sxBook) existing.sxBook = o.externalId;
       } else {
         existing.polymarket = mergePlatformOdds(existing.polymarket, next);
+        if (o.externalId && !existing.polyBook) existing.polyBook = o.externalId;
         // Only switch the trade-target outcomeId to a Poly id if we still
         // have no SX outcome on this row (router can route from either).
         if (!existing.sx) existing.outcomeId = o.id;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from './ui/button';
-import { postTrade, getOrderBook, type OrderBookLevel } from '../lib/api';
+import { postTrade, getOrderBook, getOrderBookByPointers, type OrderBookLevel } from '../lib/api';
 import { toast } from './ui/use-toast';
 import { cn } from '../lib/utils';
 import { formatOdds } from '../lib/oddsFormat';
@@ -43,6 +43,10 @@ function GithubMark({ size = 14 }: { size?: number }) {
 interface TradePanelProps {
   outcomeId: string;
   outcomeLabel: string;
+  // Public read-only build only: precise per-venue book pointers used to fetch
+  // the orderbook (the public serverless fn has no DB outcome lookup).
+  sxBook?: string;
+  polyBook?: string;
   onTradeExecuted?: () => void;
   hideHeader?: boolean;
 }
@@ -75,7 +79,9 @@ function venueChip(platform: 'sx' | 'polymarket'): { text: string; bg: string; b
     : { text: 'text-tm-poly', bg: 'bg-tm-poly/15', border: 'border-tm-poly' };
 }
 
-export function TradePanel({ outcomeId, outcomeLabel, onTradeExecuted, hideHeader }: TradePanelProps) {
+const PUBLIC_MODE = import.meta.env.VITE_PUBLIC_MODE === 'true';
+
+export function TradePanel({ outcomeId, outcomeLabel, sxBook, polyBook, onTradeExecuted, hideHeader }: TradePanelProps) {
   const [oddsFmt] = useOddsFormat();
   const [size, setSize] = useState('');
   const [executing, setExecuting] = useState(false);
@@ -92,7 +98,12 @@ export function TradePanel({ outcomeId, outcomeLabel, onTradeExecuted, hideHeade
     setSxSide(null);
     setPolyTokenId(null);
     setBookError(false);
-    getOrderBook(outcomeId)
+    // Public read-only build has no DB outcome lookup — fetch the book by the
+    // precise per-venue pointers carried on the selection instead.
+    const fetchBook = PUBLIC_MODE
+      ? getOrderBookByPointers(sxBook, polyBook)
+      : getOrderBook(outcomeId);
+    fetchBook
       .then((resp) => {
         if (cancelled) return;
         setRestLevels(resp.levels);
@@ -102,7 +113,7 @@ export function TradePanel({ outcomeId, outcomeLabel, onTradeExecuted, hideHeade
       })
       .catch(() => { if (!cancelled) setBookError(true); });
     return () => { cancelled = true; };
-  }, [outcomeId]);
+  }, [outcomeId, sxBook, polyBook]);
 
   // Subscribe to live SX book for this outcome (if it has an SX side)
   const liveSx = useOrderBook(sxMarketHash);

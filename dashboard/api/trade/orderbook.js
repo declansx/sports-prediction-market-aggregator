@@ -27,12 +27,12 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// serverless/markets.ts
-var markets_exports = {};
-__export(markets_exports, {
+// serverless/orderbook.ts
+var orderbook_exports = {};
+__export(orderbook_exports, {
   default: () => handler
 });
-module.exports = __toCommonJS(markets_exports);
+module.exports = __toCommonJS(orderbook_exports);
 
 // ../bot/src/config.ts
 var import_zod = require("zod");
@@ -1726,213 +1726,7 @@ var MANUAL = {
   "jazz": "Utah Jazz",
   "wizards": "Washington Wizards"
 };
-var MANUAL_BY_SPORT = {
-  Hockey: {
-    // Polymarket sends nickname-only (e.g. "Sabres"); SX Bet uses "City Nickname".
-    "ducks": "Anaheim Ducks",
-    "anaheim ducks": "Anaheim Ducks",
-    "bruins": "Boston Bruins",
-    "boston bruins": "Boston Bruins",
-    "sabres": "Buffalo Sabres",
-    "buffalo sabres": "Buffalo Sabres",
-    "flames": "Calgary Flames",
-    "calgary flames": "Calgary Flames",
-    "hurricanes": "Carolina Hurricanes",
-    "carolina hurricanes": "Carolina Hurricanes",
-    "blackhawks": "Chicago Blackhawks",
-    "chicago blackhawks": "Chicago Blackhawks",
-    "avalanche": "Colorado Avalanche",
-    "colorado avalanche": "Colorado Avalanche",
-    "blue jackets": "Columbus Blue Jackets",
-    "columbus blue jackets": "Columbus Blue Jackets",
-    "stars": "Dallas Stars",
-    "dallas stars": "Dallas Stars",
-    "red wings": "Detroit Red Wings",
-    "detroit red wings": "Detroit Red Wings",
-    "oilers": "Edmonton Oilers",
-    "edmonton oilers": "Edmonton Oilers",
-    "panthers": "Florida Panthers",
-    "florida panthers": "Florida Panthers",
-    "kings": "Los Angeles Kings",
-    "los angeles kings": "Los Angeles Kings",
-    "la kings": "Los Angeles Kings",
-    "wild": "Minnesota Wild",
-    "minnesota wild": "Minnesota Wild",
-    "canadiens": "Montreal Canadiens",
-    "montreal canadiens": "Montreal Canadiens",
-    "habs": "Montreal Canadiens",
-    "predators": "Nashville Predators",
-    "nashville predators": "Nashville Predators",
-    "preds": "Nashville Predators",
-    "devils": "New Jersey Devils",
-    "new jersey devils": "New Jersey Devils",
-    "islanders": "New York Islanders",
-    "new york islanders": "New York Islanders",
-    "rangers": "New York Rangers",
-    "new york rangers": "New York Rangers",
-    "senators": "Ottawa Senators",
-    "ottawa senators": "Ottawa Senators",
-    "sens": "Ottawa Senators",
-    "flyers": "Philadelphia Flyers",
-    "philadelphia flyers": "Philadelphia Flyers",
-    "penguins": "Pittsburgh Penguins",
-    "pittsburgh penguins": "Pittsburgh Penguins",
-    "pens": "Pittsburgh Penguins",
-    "sharks": "San Jose Sharks",
-    "san jose sharks": "San Jose Sharks",
-    "kraken": "Seattle Kraken",
-    "seattle kraken": "Seattle Kraken",
-    "blues": "St. Louis Blues",
-    "st. louis blues": "St. Louis Blues",
-    "st louis blues": "St. Louis Blues",
-    "lightning": "Tampa Bay Lightning",
-    "tampa bay lightning": "Tampa Bay Lightning",
-    "bolts": "Tampa Bay Lightning",
-    "maple leafs": "Toronto Maple Leafs",
-    "toronto maple leafs": "Toronto Maple Leafs",
-    "leafs": "Toronto Maple Leafs",
-    // Utah is mid-rebrand: Polymarket has both "Utah" and "Mammoth"; SX is still "Utah Hockey Club"
-    "utah": "Utah Hockey Club",
-    "mammoth": "Utah Hockey Club",
-    "utah mammoth": "Utah Hockey Club",
-    "utah hockey club": "Utah Hockey Club",
-    "canucks": "Vancouver Canucks",
-    "vancouver canucks": "Vancouver Canucks",
-    "golden knights": "Vegas Golden Knights",
-    "vegas golden knights": "Vegas Golden Knights",
-    "vgk": "Vegas Golden Knights",
-    "capitals": "Washington Capitals",
-    "washington capitals": "Washington Capitals",
-    "caps": "Washington Capitals",
-    "jets": "Winnipeg Jets",
-    "winnipeg jets": "Winnipeg Jets"
-  }
-};
 var CANONICAL = { ...GENERATED_CANONICAL, ...MANUAL };
-var STRIP_PREFIX = /^(ca|cd|cf|csd|se|sc|sd|ec|cr|cs|gd|fk|nk|bk|as|ac|sl|sk|rb|afc|ssc|bsc|hsv|club)\s+/i;
-var STRIP_SUFFIX = /\s+(fc|cf|sc|sd|afc|ssc|kv|ac|bk|if)$/i;
-var STRIP_PARENS = /\s*\([^)]*\)\s*$/;
-function stripAffixes(raw) {
-  return raw.trim().replace(STRIP_PARENS, "").replace(STRIP_PREFIX, "").replace(STRIP_SUFFIX, "").trim();
-}
-function canonicalTeamName(raw, sport) {
-  const trimmed = raw.trim();
-  const lower = trimmed.toLowerCase();
-  const sportMap = sport ? MANUAL_BY_SPORT[sport] : void 0;
-  if (sportMap && sportMap[lower]) return sportMap[lower];
-  if (CANONICAL[lower]) return CANONICAL[lower];
-  const stripped = stripAffixes(trimmed);
-  const strippedLower = stripped.toLowerCase();
-  if (strippedLower !== lower) {
-    if (sportMap && sportMap[strippedLower]) return sportMap[strippedLower];
-    if (CANONICAL[strippedLower]) return CANONICAL[strippedLower];
-  }
-  if (stripped && stripped !== trimmed) return stripped;
-  return trimmed;
-}
-
-// ../bot/src/leagues.ts
-var EPL = {
-  name: "EPL",
-  sport: "Soccer",
-  hasDraw: true,
-  sxbet: { leagueId: 29 },
-  polymarket: { seriesId: 10188, titleOrdering: "home" }
-};
-var UCL = {
-  name: "UCL",
-  sport: "Soccer",
-  hasDraw: true,
-  sxbet: { leagueId: 30 },
-  polymarket: { seriesId: 10204, titleOrdering: "home" }
-};
-var UEL = {
-  name: "UEL",
-  sport: "Soccer",
-  hasDraw: true,
-  sxbet: { leagueId: 31 },
-  polymarket: { seriesId: 10209, titleOrdering: "home" }
-};
-var COPA_LIBERTADORES = {
-  name: "Copa Libertadores",
-  sport: "Soccer",
-  hasDraw: true,
-  sxbet: { leagueId: 1631 },
-  polymarket: { seriesId: 10289, titleOrdering: "home" }
-};
-var LA_LIGA = {
-  name: "La Liga",
-  sport: "Soccer",
-  hasDraw: true,
-  sxbet: { leagueId: 1114 },
-  polymarket: { seriesId: 10193, titleOrdering: "home" }
-};
-var SERIE_A = {
-  name: "Serie A",
-  sport: "Soccer",
-  hasDraw: true,
-  sxbet: { leagueId: 1113 },
-  polymarket: { seriesId: 10203, titleOrdering: "home" }
-};
-var BUNDESLIGA = {
-  name: "Bundesliga",
-  sport: "Soccer",
-  hasDraw: true,
-  sxbet: { leagueId: 244 },
-  polymarket: { seriesId: 10194, titleOrdering: "home" }
-};
-var EREDIVISIE = {
-  name: "Eredivisie",
-  sport: "Soccer",
-  hasDraw: true,
-  sxbet: { leagueId: 1330 },
-  polymarket: { seriesId: 10286, titleOrdering: "home" }
-};
-var LIGUE_1 = {
-  name: "Ligue 1",
-  sport: "Soccer",
-  hasDraw: true,
-  sxbet: { leagueId: 1112 },
-  polymarket: { seriesId: 10195, titleOrdering: "home" }
-};
-var WORLD_CUP = {
-  name: "World Cup",
-  sport: "Soccer",
-  hasDraw: true,
-  // SX league 1715 = "FIFA World Cup". Soccer (default sportId 5), type-1 markets
-  // carry the Tie outcome, live-enabled.
-  sxbet: { leagueId: 1715 },
-  // Gamma series 11433 (sport slug "fifwc"). National-team titles list HOME first,
-  // like the club soccer leagues.
-  polymarket: { seriesId: 11433, titleOrdering: "home" }
-};
-var NBA = {
-  name: "NBA",
-  sport: "Basketball",
-  hasDraw: false,
-  sxbet: { leagueId: 1, sportId: 1 },
-  // seriesId 10345 = NBA daily games series — scopes to individual game markets only,
-  // excluding playoff series/special-event markets that share the 'nba' tag slug.
-  // Polymarket NBA titles list AWAY first ("Visitor at Home").
-  polymarket: { seriesId: 10345, titleOrdering: "away" }
-};
-var MLB = {
-  name: "MLB",
-  sport: "Baseball",
-  hasDraw: false,
-  sxbet: { leagueId: 171, sportId: 3 },
-  // seriesId 3 = MLB daily games series. Polymarket MLB titles list AWAY first.
-  polymarket: { seriesId: 3, titleOrdering: "away" }
-};
-var NHL = {
-  name: "NHL",
-  sport: "Hockey",
-  hasDraw: false,
-  sxbet: { leagueId: 3, sportId: 2 },
-  // seriesId 10346 = NHL daily games series. Polymarket NHL titles list AWAY first.
-  polymarket: { seriesId: 10346, titleOrdering: "away" }
-};
-var ACTIVE_LEAGUE = UCL;
 
 // ../bot/src/logger.ts
 var import_pino = __toESM(require("pino"));
@@ -1974,8 +1768,6 @@ var BASE_TOKEN = "0x6629Ce1Cf35Cc1329ebB4F63202F3f197b3F050B";
 var ODDS_PRECISION = BigInt("100000000000000000000");
 var USDC_DECIMALS = 1e6;
 var TOP_LEVELS = 5;
-var ORDER_BATCH_SIZE = 30;
-var BATCH_DELAY_MS = 600;
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -1987,23 +1779,6 @@ async function fetchWithRetry(url) {
     return fetch(url);
   }
   return res;
-}
-async function fetchAllActiveMarkets(leagueId) {
-  const markets = [];
-  let paginationKey;
-  do {
-    const params = new URLSearchParams({
-      pageSize: "50",
-      leagueId: String(leagueId)
-    });
-    if (paginationKey) params.set("paginationKey", paginationKey);
-    const res = await fetchWithRetry(`${config.SX_BET_API_URL}/markets/active?${params}`);
-    if (!res.ok) throw new Error(`GET /markets/active returned ${res.status}`);
-    const body = await res.json();
-    markets.push(...body.data.markets);
-    paginationKey = body.data.nextKey || void 0;
-  } while (paginationKey);
-  return markets;
 }
 async function fetchOrdersForHashes(hashes) {
   const params = new URLSearchParams({
@@ -2039,159 +1814,6 @@ function buildOutcome(label, orders, takerBettingOutcomeOne) {
     impliedOdds: bestOdds,
     liquidityDepth: { availableSize: totalAvailableUsdc, topLevels }
   };
-}
-var GAME_LINE_TYPES = /* @__PURE__ */ new Set([52, 226, 3, 342, 2, 28]);
-function betTypeFromSxType(type) {
-  if (type === 52 || type === 226) return "12";
-  if (type === 3 || type === 342) return "spread";
-  return "total";
-}
-function canonicalizeOutcomeLabel(rawLabel, rawHome, rawAway, homeCanonical, awayCanonical) {
-  if (rawLabel.startsWith(rawHome)) return homeCanonical + rawLabel.slice(rawHome.length);
-  if (rawLabel.startsWith(rawAway)) return awayCanonical + rawLabel.slice(rawAway.length);
-  return rawLabel;
-}
-async function fetchSxBetMarkets(league = ACTIVE_LEAGUE) {
-  const allMarkets = await fetchAllActiveMarkets(league.sxbet.leagueId);
-  if (allMarkets.length === 0) {
-    log.warn({ league: league.name, leagueId: league.sxbet.leagueId }, "API returned 0 markets");
-    return [];
-  }
-  const type1Markets = league.hasDraw ? allMarkets.filter((m) => m.type === 1) : [];
-  const gameLinesMarkets = allMarkets.filter(
-    (m) => GAME_LINE_TYPES.has(m.type) && m.teamOneName && m.teamTwoName
-  );
-  const gameMap = /* @__PURE__ */ new Map();
-  for (const market of type1Markets) {
-    const rawHome = (market.teamOneName ?? "").trim();
-    const rawAway = (market.teamTwoName ?? "").trim();
-    if (!rawHome || !rawAway) continue;
-    const key = `${market.gameTime}|${rawHome}|${rawAway}`;
-    if (!gameMap.has(key)) {
-      gameMap.set(key, {
-        homeTeam: canonicalTeamName(rawHome, league.sport),
-        awayTeam: canonicalTeamName(rawAway, league.sport),
-        gameTime: market.gameTime,
-        sportLabel: market.sportLabel,
-        sxEventId: market.sportXeventId
-      });
-    }
-    const entry = gameMap.get(key);
-    const o1Lower = market.outcomeOneName.toLowerCase().trim();
-    if (o1Lower === rawHome.toLowerCase()) {
-      entry.homeWinMarket = market;
-    } else if (o1Lower === "tie") {
-      entry.drawMarket = market;
-    } else if (o1Lower === rawAway.toLowerCase()) {
-      entry.awayWinMarket = market;
-    }
-  }
-  const allHashes = [];
-  for (const entry of gameMap.values()) {
-    if (entry.homeWinMarket) allHashes.push(entry.homeWinMarket.marketHash);
-    if (entry.drawMarket) allHashes.push(entry.drawMarket.marketHash);
-    if (entry.awayWinMarket) allHashes.push(entry.awayWinMarket.marketHash);
-  }
-  for (const m of gameLinesMarkets) allHashes.push(m.marketHash);
-  const ordersMap = /* @__PURE__ */ new Map();
-  for (let i = 0; i < allHashes.length; i += ORDER_BATCH_SIZE) {
-    const batch = allHashes.slice(i, i + ORDER_BATCH_SIZE);
-    const batchNum = Math.floor(i / ORDER_BATCH_SIZE) + 1;
-    try {
-      const orders = await fetchOrdersForHashes(batch);
-      for (const order of orders) {
-        const list = ordersMap.get(order.marketHash) ?? [];
-        list.push(order);
-        ordersMap.set(order.marketHash, list);
-      }
-    } catch (err) {
-      log.error({ err, batchNum }, "failed to fetch orders batch");
-    }
-    if (i + ORDER_BATCH_SIZE < allHashes.length) {
-      await sleep(BATCH_DELAY_MS);
-    }
-  }
-  const quotes = [];
-  for (const [, entry] of gameMap) {
-    if (!entry.homeWinMarket) continue;
-    const name = `${entry.homeTeam} vs ${entry.awayTeam}`;
-    const outcomes = [];
-    const homeOrders = ordersMap.get(entry.homeWinMarket.marketHash) ?? [];
-    const homeOut = buildOutcome(entry.homeTeam, homeOrders, true);
-    homeOut.externalId = `${entry.homeWinMarket.marketHash}:0`;
-    outcomes.push(homeOut);
-    const notHomeOut = buildOutcome(`Not ${entry.homeTeam}`, homeOrders, false);
-    notHomeOut.externalId = `${entry.homeWinMarket.marketHash}:1`;
-    outcomes.push(notHomeOut);
-    if (entry.drawMarket) {
-      const drawOrders = ordersMap.get(entry.drawMarket.marketHash) ?? [];
-      const drawOut = buildOutcome("Draw", drawOrders, true);
-      drawOut.externalId = `${entry.drawMarket.marketHash}:0`;
-      outcomes.push(drawOut);
-      const notDrawOut = buildOutcome("Not Draw", drawOrders, false);
-      notDrawOut.externalId = `${entry.drawMarket.marketHash}:1`;
-      outcomes.push(notDrawOut);
-    }
-    if (entry.awayWinMarket) {
-      const awayOrders = ordersMap.get(entry.awayWinMarket.marketHash) ?? [];
-      const awayOut = buildOutcome(entry.awayTeam, awayOrders, true);
-      awayOut.externalId = `${entry.awayWinMarket.marketHash}:0`;
-      outcomes.push(awayOut);
-      const notAwayOut = buildOutcome(`Not ${entry.awayTeam}`, awayOrders, false);
-      notAwayOut.externalId = `${entry.awayWinMarket.marketHash}:1`;
-      outcomes.push(notAwayOut);
-    }
-    quotes.push({
-      platform: "sx",
-      externalId: entry.homeWinMarket.marketHash,
-      // home-win hash is the game's stable ID
-      sport: entry.sportLabel,
-      league: league.name,
-      homeTeam: entry.homeTeam,
-      awayTeam: entry.awayTeam,
-      name,
-      startTime: new Date(entry.homeWinMarket.gameTime * 1e3),
-      betType: "1x2",
-      mainLine: true,
-      sxEventId: entry.sxEventId,
-      outcomes
-    });
-  }
-  for (const market of gameLinesMarkets) {
-    const rawHome = (market.teamOneName ?? "").trim();
-    const rawAway = (market.teamTwoName ?? "").trim();
-    if (!rawHome || !rawAway) continue;
-    const homeTeam = canonicalTeamName(rawHome, league.sport);
-    const awayTeam = canonicalTeamName(rawAway, league.sport);
-    const orders = ordersMap.get(market.marketHash) ?? [];
-    const labelOne = canonicalizeOutcomeLabel(market.outcomeOneName, rawHome, rawAway, homeTeam, awayTeam);
-    const labelTwo = canonicalizeOutcomeLabel(market.outcomeTwoName, rawHome, rawAway, homeTeam, awayTeam);
-    const outcomeOne = buildOutcome(labelOne, orders, true);
-    outcomeOne.externalId = `${market.marketHash}:0`;
-    const outcomeTwo = buildOutcome(labelTwo, orders, false);
-    outcomeTwo.externalId = `${market.marketHash}:1`;
-    quotes.push({
-      platform: "sx",
-      externalId: market.marketHash,
-      sport: market.sportLabel,
-      league: league.name,
-      homeTeam,
-      awayTeam,
-      name: `${homeTeam} vs ${awayTeam}`,
-      startTime: new Date(market.gameTime * 1e3),
-      betType: betTypeFromSxType(market.type),
-      line: market.line,
-      mainLine: market.mainLine ?? true,
-      sxEventId: market.sportXeventId,
-      outcomes: [outcomeOne, outcomeTwo]
-    });
-  }
-  const glCount = quotes.filter((q) => q.betType !== "1x2").length;
-  log.info(
-    { league: league.name, total: quotes.length, oneXTwo: quotes.length - glCount, gameLines: glCount, sourceMarkets: allMarkets.length },
-    "fetched quotes"
-  );
-  return quotes;
 }
 
 // ../bot/src/services/polymarketBookCache.ts
@@ -2406,50 +2028,12 @@ var polymarketOddsCache = new PolymarketOddsCache();
 
 // ../bot/src/adapters/polymarket.ts
 var log2 = createLogger("polymarket");
-var GAMMA_API = "https://gamma-api.polymarket.com";
 var CLOB_API = "https://clob.polymarket.com";
-var GAMMA_LIMIT = 500;
-var CLOB_BATCH_SIZE = 10;
-var CLOB_BATCH_DELAY_MS = 200;
 var TOP_LEVELS2 = 5;
 var SPORTS_FEE_RATE = 0.03;
-var SMOKE_CHECK_TIMEOUT_MS = 6e3;
-function sleep2(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 function applyFee3(p, feeRate) {
   if (feeRate === 0) return p;
   return p + feeRate * p * (1 - p);
-}
-function parseJsonField(raw) {
-  if (Array.isArray(raw)) return raw;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-async function fetchLeagueEvents(league) {
-  const pm = league.polymarket;
-  const events = [];
-  let offset = 0;
-  while (true) {
-    const params = new URLSearchParams({
-      active: "true",
-      closed: "false",
-      limit: String(GAMMA_LIMIT),
-      offset: String(offset),
-      series_id: String(pm.seriesId)
-    });
-    const res = await fetch(`${GAMMA_API}/events?${params}`);
-    if (!res.ok) throw new Error(`Gamma GET /events returned ${res.status}`);
-    const pageData = await res.json();
-    if (!pageData.length) break;
-    events.push(...pageData);
-    if (pageData.length < GAMMA_LIMIT) break;
-    offset += GAMMA_LIMIT;
-  }
-  return events;
 }
 async function fetchClobBook(tokenId) {
   try {
@@ -2459,46 +2043,6 @@ async function fetchClobBook(tokenId) {
   } catch {
     return null;
   }
-}
-async function smokeCheckSportsFeeRate(conditionId) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), SMOKE_CHECK_TIMEOUT_MS);
-  try {
-    const res = await fetch(
-      `${CLOB_API}/clob-markets/${encodeURIComponent(conditionId)}`,
-      { signal: ctrl.signal }
-    );
-    if (!res.ok) return;
-    const info = await res.json();
-    const observed = info.fd?.r;
-    if (typeof observed !== "number") return;
-    if (Math.abs(observed - SPORTS_FEE_RATE) > 1e-9) {
-      log2.warn(
-        { conditionId, observed, hardcoded: SPORTS_FEE_RATE },
-        "fee rate mismatch \u2014 update SPORTS_FEE_RATE"
-      );
-    }
-  } catch {
-  } finally {
-    clearTimeout(timer);
-  }
-}
-async function fetchClobBooksForTokens(tokenIds) {
-  const result = /* @__PURE__ */ new Map();
-  for (let i = 0; i < tokenIds.length; i += CLOB_BATCH_SIZE) {
-    const batch = tokenIds.slice(i, i + CLOB_BATCH_SIZE);
-    const books = await Promise.allSettled(batch.map((id) => fetchClobBook(id)));
-    for (let j = 0; j < batch.length; j++) {
-      const settled = books[j];
-      if (settled.status === "fulfilled" && settled.value) {
-        result.set(batch[j], settled.value);
-      }
-    }
-    if (i + CLOB_BATCH_SIZE < tokenIds.length) {
-      await sleep2(CLOB_BATCH_DELAY_MS);
-    }
-  }
-  return result;
 }
 function buildOutcomeFromBook(label, book, fallbackPrice, fallbackLiquidity, feeRate = 0) {
   if (!book || !book.asks.length) {
@@ -2518,546 +2062,56 @@ function buildOutcomeFromBook(label, book, fallbackPrice, fallbackLiquidity, fee
     liquidityDepth: { availableSize, topLevels }
   };
 }
-function startTimeFromEvent(event) {
-  const raw = event.markets.find((m) => m.gameStartTime)?.gameStartTime;
-  if (raw) {
-    const iso = raw.replace(" ", "T").replace(/\+00$/, "+00:00");
-    const d = new Date(iso);
-    if (!isNaN(d.getTime())) return d;
-  }
-  return new Date(event.endDate ?? event.startDate);
-}
-function extractTeams(title, titleOrdering) {
-  const stripped = title.replace(/^[^:]+:\s*/, "").replace(/\s+-\s+.+$/, "");
-  const match = stripped.match(/^(.+?)\s+vs\.?\s+(.+)$/i);
-  if (!match) return null;
-  const first = match[1].trim();
-  const second = match[2].trim();
-  return titleOrdering === "home" ? [first, second] : [second, first];
-}
-function isMoneylineMarket(m) {
-  return !m.sportsMarketType || m.sportsMarketType === "moneyline";
-}
-function findHomeWinMarket(markets, homeTeam, awayTeam) {
-  const homeLower = homeTeam.toLowerCase();
-  const awayLower = awayTeam.toLowerCase();
-  return markets.find((m) => {
-    if (!m.active || m.closed) return false;
-    if (!isMoneylineMarket(m)) return false;
-    const q = m.question.toLowerCase();
-    if (q.includes("draw")) return false;
-    const homeIdx = q.indexOf(homeLower);
-    if (homeIdx < 0) return false;
-    const awayIdx = q.indexOf(awayLower);
-    if (awayIdx >= 0) return homeIdx < awayIdx;
-    return true;
-  });
-}
-function findAwayWinMarket(markets, homeTeam, awayTeam) {
-  const homeLower = homeTeam.toLowerCase();
-  const awayLower = awayTeam.toLowerCase();
-  return markets.find((m) => {
-    if (!m.active || m.closed) return false;
-    if (!isMoneylineMarket(m)) return false;
-    const q = m.question.toLowerCase();
-    if (q.includes("draw")) return false;
-    const awayIdx = q.indexOf(awayLower);
-    if (awayIdx < 0) return false;
-    const homeIdx = q.indexOf(homeLower);
-    if (homeIdx >= 0) return awayIdx < homeIdx;
-    return true;
-  });
-}
-function findDrawMarket(markets) {
-  return markets.find((m) => {
-    if (!m.active || m.closed) return false;
-    if (!isMoneylineMarket(m)) return false;
-    const q = m.question.toLowerCase();
-    return q.includes("draw") || q.includes("tie");
-  });
-}
-function eventTitleSuffix(title) {
-  const dashIdx = title.indexOf(" - ");
-  return dashIdx >= 0 ? title.slice(dashIdx + 3).toLowerCase() : "";
-}
-var GAME_LINES_SUFFIX_KEYWORDS = [
-  "more markets",
-  "goal",
-  "total",
-  "over",
-  "under",
-  "handicap",
-  "spread"
-];
-function isGameLinesEvent(title) {
-  const suffix = eventTitleSuffix(title);
-  return GAME_LINES_SUFFIX_KEYWORDS.some((kw) => suffix.includes(kw));
-}
-function parseGameLineSubMarket(market, sport, feeRate) {
-  if (!market.active || market.closed) return null;
-  let betType = null;
-  if (market.sportsMarketType === "spreads") betType = "spread";
-  else if (market.sportsMarketType === "totals") betType = "total";
-  else {
-    const q = market.question.toLowerCase();
-    if (q.startsWith("spread:")) betType = "spread";
-    else if (q.startsWith("total:") || q.includes("over") || q.includes("under")) betType = "total";
-  }
-  if (!betType) return null;
-  if (market.line === void 0 || market.line === null) return null;
-  const lineVal = market.line;
-  const tokens = parseJsonField(market.clobTokenIds);
-  if (!tokens[0] || !tokens[1]) return null;
-  const prices = parseJsonField(market.outcomePrices).map(Number);
-  const outcomeLabels = parseJsonField(market.outcomes);
-  const liq = parseFloat(market.liquidity ?? "0") / 2;
-  const genericLabels = !outcomeLabels[0] || outcomeLabels[0] === "Yes" || outcomeLabels[0] === "No";
-  let labelOne;
-  let labelTwo;
-  const absLine = Math.abs(lineVal);
-  if (betType === "spread") {
-    if (!genericLabels && outcomeLabels.length >= 2) {
-      const team1 = canonicalTeamName(outcomeLabels[0], sport);
-      const team2 = canonicalTeamName(outcomeLabels[1], sport);
-      labelOne = lineVal <= 0 ? `${team1} -${absLine}` : `${team1} +${absLine}`;
-      labelTwo = lineVal <= 0 ? `${team2} +${absLine}` : `${team2} -${absLine}`;
-    } else {
-      const q = market.question;
-      const teamMatch = q.match(/Spread:\s*(.+?)\s*\(/i);
-      if (!teamMatch) return null;
-      const team1 = canonicalTeamName(teamMatch[1].trim(), sport);
-      labelOne = lineVal <= 0 ? `${team1} -${absLine}` : `${team1} +${absLine}`;
-      labelTwo = lineVal <= 0 ? `Other +${absLine}` : `Other -${absLine}`;
-    }
-  } else {
-    if (!genericLabels && outcomeLabels.length >= 2) {
-      const o1Lower = outcomeLabels[0].toLowerCase();
-      if (o1Lower.includes("over") || o1Lower.includes("under")) {
-        const hasNumber = /\d/.test(outcomeLabels[0]);
-        labelOne = hasNumber ? outcomeLabels[0] : `${outcomeLabels[0]} ${absLine}`;
-        labelTwo = hasNumber ? outcomeLabels[1] : `${outcomeLabels[1]} ${absLine}`;
-      } else {
-        labelOne = `Over ${absLine}`;
-        labelTwo = `Under ${absLine}`;
-      }
-    } else {
-      const qLower = market.question.toLowerCase();
-      if (qLower.includes("under") && !qLower.includes("over")) {
-        labelOne = `Under ${absLine}`;
-        labelTwo = `Over ${absLine}`;
-      } else {
-        labelOne = `Over ${absLine}`;
-        labelTwo = `Under ${absLine}`;
-      }
-    }
-  }
+
+// ../bot/src/public/fetchOrderBook.ts
+async function sxSideLevels(sxPointer) {
+  const idx = sxPointer.lastIndexOf(":");
+  const hash = idx === -1 ? sxPointer : sxPointer.slice(0, idx);
+  const side = sxPointer.slice(idx + 1) === "1" ? 1 : 0;
+  const orders = await fetchOrdersForHashes([hash]);
+  const outcome = buildOutcome("", orders, side === 0);
   return {
-    betType,
-    line: lineVal,
-    labelOne,
-    labelTwo,
-    tokenOne: tokens[0],
-    tokenTwo: tokens[1],
-    fallbackOne: prices[0] ?? 0,
-    fallbackTwo: prices[1] ?? 0,
-    liquidityEach: liq,
-    feeRate
+    levels: outcome.liquidityDepth.topLevels.map((l) => ({ odds: l.odds, size: l.size, platform: "sx" })),
+    hash,
+    side
   };
 }
-async function fetchPolymarketMarkets(league = ACTIVE_LEAGUE) {
-  if (!league.polymarket) return [];
-  const allEvents = await fetchLeagueEvents(league);
-  if (!allEvents.length) return [];
-  const matchEvents = allEvents.filter((e) => !e.title.includes(" - "));
-  const gameLinesRaw = allEvents.filter((e) => e.title.includes(" - "));
-  const matchEntries = [];
-  const glItems = [];
-  const allTokenIds = [];
-  const feeRateOf = (_m) => SPORTS_FEE_RATE;
-  for (const event of matchEvents) {
-    const teams = extractTeams(event.title, league.polymarket.titleOrdering);
-    if (!teams) continue;
-    const [rawHome, rawAway] = teams;
-    const homeTeam = canonicalTeamName(rawHome, league.sport);
-    const awayTeam = canonicalTeamName(rawAway, league.sport);
-    const outcomeEntries = [];
-    if (!league.hasDraw) {
-      const mlMarket = event.markets.find((m) => m.active && !m.closed && isMoneylineMarket(m));
-      if (!mlMarket) continue;
-      const tokens = parseJsonField(mlMarket.clobTokenIds);
-      const prices = parseJsonField(mlMarket.outcomePrices).map(Number);
-      const outcomeLabels = parseJsonField(mlMarket.outcomes);
-      const liq = parseFloat(mlMarket.liquidity) / 2;
-      const feeRate = feeRateOf(mlMarket);
-      for (let i = 0; i < 2; i++) {
-        if (!tokens[i]) continue;
-        const rawTeam = outcomeLabels[i] ?? "";
-        const teamName = canonicalTeamName(rawTeam, league.sport);
-        outcomeEntries.push({
-          label: teamName,
-          tokenId: tokens[i],
-          fallbackPrice: prices[i] ?? 0,
-          liquidity: liq,
-          feeRate
-        });
-        allTokenIds.push(tokens[i]);
-      }
-    } else {
-      const homeWinMarket = findHomeWinMarket(event.markets, rawHome, rawAway);
-      if (!homeWinMarket) continue;
-      const tokens = parseJsonField(homeWinMarket.clobTokenIds);
-      const prices = parseJsonField(homeWinMarket.outcomePrices).map(Number);
-      const liq = parseFloat(homeWinMarket.liquidity) / 2;
-      const feeRate = feeRateOf(homeWinMarket);
-      if (tokens[0]) {
-        outcomeEntries.push({
-          label: homeTeam,
-          tokenId: tokens[0],
-          fallbackPrice: prices[0] ?? 0,
-          liquidity: liq,
-          feeRate
-        });
-        allTokenIds.push(tokens[0]);
-      }
-      if (tokens[1]) {
-        outcomeEntries.push({
-          label: `Not ${homeTeam}`,
-          tokenId: tokens[1],
-          fallbackPrice: prices[1] ?? 0,
-          liquidity: liq,
-          feeRate
-        });
-        allTokenIds.push(tokens[1]);
-      }
-    }
-    if (league.hasDraw) {
-      const drawMarket = findDrawMarket(event.markets);
-      if (drawMarket) {
-        const tokens = parseJsonField(drawMarket.clobTokenIds);
-        const prices = parseJsonField(drawMarket.outcomePrices).map(Number);
-        const liq = parseFloat(drawMarket.liquidity) / 2;
-        const feeRate = feeRateOf(drawMarket);
-        if (tokens[0]) {
-          outcomeEntries.push({ label: "Draw", tokenId: tokens[0], fallbackPrice: prices[0] ?? 0, liquidity: liq, feeRate });
-          allTokenIds.push(tokens[0]);
-        }
-        if (tokens[1]) {
-          outcomeEntries.push({ label: "Not Draw", tokenId: tokens[1], fallbackPrice: prices[1] ?? 0, liquidity: liq, feeRate });
-          allTokenIds.push(tokens[1]);
-        }
-      }
-      const awayWinMarket = findAwayWinMarket(event.markets, rawHome, rawAway);
-      if (awayWinMarket) {
-        const tokens = parseJsonField(awayWinMarket.clobTokenIds);
-        const prices = parseJsonField(awayWinMarket.outcomePrices).map(Number);
-        const liq = parseFloat(awayWinMarket.liquidity) / 2;
-        const feeRate = feeRateOf(awayWinMarket);
-        if (tokens[0]) {
-          outcomeEntries.push({ label: awayTeam, tokenId: tokens[0], fallbackPrice: prices[0] ?? 0, liquidity: liq, feeRate });
-          allTokenIds.push(tokens[0]);
-        }
-        if (tokens[1]) {
-          outcomeEntries.push({ label: `Not ${awayTeam}`, tokenId: tokens[1], fallbackPrice: prices[1] ?? 0, liquidity: liq, feeRate });
-          allTokenIds.push(tokens[1]);
-        }
-      }
-    }
-    if (outcomeEntries.length === 0) continue;
-    matchEntries.push({ event, homeTeam, awayTeam, outcomeEntries });
-  }
-  const EMBEDDED_GL_TYPES = /* @__PURE__ */ new Set(["spreads", "totals"]);
-  for (const event of matchEvents) {
-    const teams = extractTeams(event.title, league.polymarket.titleOrdering);
-    if (!teams) continue;
-    const [rawHome, rawAway] = teams;
-    const homeTeam = canonicalTeamName(rawHome, league.sport);
-    const awayTeam = canonicalTeamName(rawAway, league.sport);
-    const startTime = startTimeFromEvent(event);
-    for (const subMarket of event.markets) {
-      if (!EMBEDDED_GL_TYPES.has(subMarket.sportsMarketType ?? "")) continue;
-      const parsed2 = parseGameLineSubMarket(subMarket, league.sport, feeRateOf(subMarket));
-      if (!parsed2) continue;
-      allTokenIds.push(parsed2.tokenOne, parsed2.tokenTwo);
-      glItems.push({
-        homeTeam,
-        awayTeam,
-        polyEventId: event.id,
-        conditionId: subMarket.conditionId,
-        betType: parsed2.betType,
-        line: parsed2.line,
-        startTime,
-        labelOne: parsed2.labelOne,
-        labelTwo: parsed2.labelTwo,
-        tokenOne: parsed2.tokenOne,
-        tokenTwo: parsed2.tokenTwo,
-        fallbackOne: parsed2.fallbackOne,
-        fallbackTwo: parsed2.fallbackTwo,
-        liquidityEach: parsed2.liquidityEach,
-        feeRate: parsed2.feeRate
-      });
-    }
-  }
-  for (const event of gameLinesRaw) {
-    if (!isGameLinesEvent(event.title)) continue;
-    const teams = extractTeams(event.title, league.polymarket.titleOrdering);
-    if (!teams) continue;
-    const [rawHome, rawAway] = teams;
-    const homeTeam = canonicalTeamName(rawHome, league.sport);
-    const awayTeam = canonicalTeamName(rawAway, league.sport);
-    const startTime = startTimeFromEvent(event);
-    for (const subMarket of event.markets) {
-      const parsed2 = parseGameLineSubMarket(subMarket, league.sport, feeRateOf(subMarket));
-      if (!parsed2) continue;
-      allTokenIds.push(parsed2.tokenOne, parsed2.tokenTwo);
-      glItems.push({
-        homeTeam,
-        awayTeam,
-        polyEventId: event.id,
-        conditionId: subMarket.conditionId,
-        betType: parsed2.betType,
-        line: parsed2.line,
-        startTime,
-        labelOne: parsed2.labelOne,
-        labelTwo: parsed2.labelTwo,
-        tokenOne: parsed2.tokenOne,
-        tokenTwo: parsed2.tokenTwo,
-        fallbackOne: parsed2.fallbackOne,
-        fallbackTwo: parsed2.fallbackTwo,
-        liquidityEach: parsed2.liquidityEach,
-        feeRate: parsed2.feeRate
-      });
-    }
-  }
-  for (const entry of matchEntries) {
-    for (const oe of entry.outcomeEntries) {
-      polymarketBookCache.setFeeRate(oe.tokenId, oe.feeRate);
-      polymarketOddsCache.setFeeRate(oe.tokenId, oe.feeRate);
-    }
-  }
-  for (const gl of glItems) {
-    polymarketBookCache.setFeeRate(gl.tokenOne, gl.feeRate);
-    polymarketBookCache.setFeeRate(gl.tokenTwo, gl.feeRate);
-    polymarketOddsCache.setFeeRate(gl.tokenOne, gl.feeRate);
-    polymarketOddsCache.setFeeRate(gl.tokenTwo, gl.feeRate);
-  }
-  const bookMap = await fetchClobBooksForTokens(allTokenIds);
-  const quotes = [];
-  for (const entry of matchEntries) {
-    const outcomes = [];
-    for (const oe of entry.outcomeEntries) {
-      const o = buildOutcomeFromBook(oe.label, bookMap.get(oe.tokenId), oe.fallbackPrice, oe.liquidity, oe.feeRate);
-      o.externalId = oe.tokenId;
-      outcomes.push(o);
-    }
-    quotes.push({
-      platform: "polymarket",
-      externalId: entry.event.id,
-      sport: league.sport,
-      league: league.name,
-      homeTeam: entry.homeTeam,
-      awayTeam: entry.awayTeam,
-      name: `${entry.homeTeam} vs ${entry.awayTeam}`,
-      startTime: startTimeFromEvent(entry.event),
-      betType: league.hasDraw ? "1x2" : "12",
-      polyEventId: entry.event.id,
-      outcomes
-    });
-  }
-  for (const gl of glItems) {
-    const outcomeOne = buildOutcomeFromBook(gl.labelOne, bookMap.get(gl.tokenOne), gl.fallbackOne, gl.liquidityEach, gl.feeRate);
-    outcomeOne.externalId = gl.tokenOne;
-    const outcomeTwo = buildOutcomeFromBook(gl.labelTwo, bookMap.get(gl.tokenTwo), gl.fallbackTwo, gl.liquidityEach, gl.feeRate);
-    outcomeTwo.externalId = gl.tokenTwo;
-    quotes.push({
-      platform: "polymarket",
-      externalId: gl.conditionId,
-      sport: league.sport,
-      league: league.name,
-      homeTeam: gl.homeTeam,
-      awayTeam: gl.awayTeam,
-      name: `${gl.homeTeam} vs ${gl.awayTeam}`,
-      startTime: gl.startTime,
-      betType: gl.betType,
-      line: gl.line,
-      mainLine: false,
-      polyEventId: gl.polyEventId,
-      outcomes: [outcomeOne, outcomeTwo]
-    });
-  }
-  const glCount = quotes.filter((q) => q.betType !== "1x2").length;
-  log2.info(
-    { league: league.name, total: quotes.length, oneXTwo: quotes.length - glCount, gameLines: glCount, booksFetched: bookMap.size, booksRequested: allTokenIds.length },
-    "fetched quotes"
-  );
-  const sampleConditionId = matchEntries[0]?.event.markets[0]?.conditionId ?? glItems[0]?.conditionId;
-  if (sampleConditionId) {
-    void smokeCheckSportsFeeRate(sampleConditionId);
-  }
-  return quotes;
+async function polyTokenLevels(tokenId) {
+  const book = await fetchClobBook(tokenId);
+  const outcome = buildOutcomeFromBook("", book ?? void 0, 0, 0, SPORTS_FEE_RATE);
+  return outcome.liquidityDepth.topLevels.map((l) => ({ odds: l.odds, size: l.size, platform: "polymarket" }));
 }
-
-// ../bot/src/router/canonicalize.ts
-function canonicalize(label, betType, homeTeam, awayTeam) {
-  const lbl = label.trim();
-  if (betType === "1x2") {
-    if (lbl === homeTeam) return { parts: { key: "1x2:home", betType, side: "home", line: null } };
-    if (lbl === "Draw") return { parts: { key: "1x2:draw", betType, side: "draw", line: null } };
-    if (lbl === awayTeam) return { parts: { key: "1x2:away", betType, side: "away", line: null } };
-    if (lbl === `Not ${homeTeam}`) return { parts: { key: "1x2:not_home", betType, side: "not_home", line: null } };
-    if (lbl === "Not Draw") return { parts: { key: "1x2:not_draw", betType, side: "not_draw", line: null } };
-    if (lbl === `Not ${awayTeam}`) return { parts: { key: "1x2:not_away", betType, side: "not_away", line: null } };
-    return { parts: null, reason: "1x2 label did not match home/draw/away/negations" };
-  }
-  if (betType === "12") {
-    if (lbl === homeTeam) return { parts: { key: "12:home", betType, side: "home", line: null } };
-    if (lbl === awayTeam) return { parts: { key: "12:away", betType, side: "away", line: null } };
-    return { parts: null, reason: "12 label did not match home/away" };
-  }
-  if (betType === "spread") {
-    const m = lbl.match(/^(.+?)\s+([+-]?\d+(?:\.\d+)?)$/);
-    if (!m) return { parts: null, reason: "spread label did not parse" };
-    const teamPart = m[1].trim();
-    const handicap = parseFloat(m[2]);
-    let side;
-    if (teamPart === homeTeam) side = "home";
-    else if (teamPart === awayTeam) side = "away";
-    else return { parts: null, reason: `spread team prefix "${teamPart}" not home/away` };
-    const v = handicap === 0 ? 0 : handicap;
-    const norm = v > 0 ? `+${v}` : `${v}`;
-    return { parts: { key: `spread:${side}:${norm}`, betType, side, line: v } };
-  }
-  if (betType === "total") {
-    const m = lbl.match(/^(Over|Under)\s+(\d+(?:\.\d+)?)$/i);
-    if (!m) return { parts: null, reason: "total label did not parse" };
-    const dir = m[1].toLowerCase();
-    const magnitude = parseFloat(m[2]);
-    return { parts: { key: `total:${dir}:${magnitude}`, betType, side: dir, line: magnitude } };
-  }
-  return { parts: null, reason: `unknown betType ${betType}` };
-}
-
-// ../bot/src/public/buildMarkets.ts
-var SIX_HOURS_MS = 6 * 60 * 60 * 1e3;
-function eventKeyFor(home, away, sport, league, startTime) {
-  const teamKey = [home, away].sort().join("\0");
-  const bucket = Math.floor(startTime.getTime() / SIX_HOURS_MS);
-  return `${sport}${league}${teamKey}${bucket}`;
-}
-function buildOverlaidMarkets(sxQuotes, polyQuotes, now = /* @__PURE__ */ new Date()) {
-  const events = /* @__PURE__ */ new Map();
-  const ingest = (quote) => {
-    if (!quote.homeTeam || !quote.awayTeam) return;
-    const home = canonicalTeamName(quote.homeTeam, quote.sport);
-    const away = canonicalTeamName(quote.awayTeam, quote.sport);
-    const key = eventKeyFor(home, away, quote.sport, quote.league, quote.startTime);
-    const isSx = quote.platform === "sx";
-    let agg = events.get(key);
-    if (!agg) {
-      agg = {
-        key,
-        sport: quote.sport,
-        league: quote.league,
-        home,
-        away,
-        startTime: quote.startTime,
-        sxEventId: quote.sxEventId ?? null,
-        quotes: [],
-        resolvedBySx: isSx
-      };
-      events.set(key, agg);
-    } else if (isSx && !agg.resolvedBySx) {
-      agg.home = home;
-      agg.away = away;
-      agg.startTime = quote.startTime;
-      agg.resolvedBySx = true;
-    }
-    if (isSx && quote.sxEventId && !agg.sxEventId) agg.sxEventId = quote.sxEventId;
-    agg.quotes.push(quote);
-  };
-  for (const q of sxQuotes) ingest(q);
-  for (const q of polyQuotes) ingest(q);
-  const lastUpdated = now.toISOString();
-  const out = [];
-  for (const agg of events.values()) {
-    const name = `${agg.home} vs ${agg.away}`;
-    const startTime = agg.startTime.toISOString();
-    for (const quote of agg.quotes) {
-      const outcomes = quote.outcomes.map((o) => {
-        const result = canonicalize(o.label, quote.betType, agg.home, agg.away);
-        return {
-          id: `${quote.platform}:${quote.externalId}:${o.label}`,
-          label: o.label,
-          platform: quote.platform,
-          externalId: o.externalId ?? void 0,
-          impliedOdds: o.impliedOdds,
-          availableSize: o.liquidityDepth.availableSize,
-          lastUpdated,
-          canonicalKey: result.parts?.key ?? null
-        };
-      });
-      out.push({
-        id: `${quote.platform}:${quote.externalId}`,
-        eventId: agg.key,
-        platform: quote.platform,
-        externalId: quote.externalId,
-        sport: agg.sport,
-        league: agg.league,
-        homeTeam: agg.home,
-        awayTeam: agg.away,
-        name,
-        startTime,
-        status: "active",
-        betType: quote.betType,
-        line: quote.line ?? null,
-        mainLine: quote.mainLine ?? true,
-        sxEventId: agg.sxEventId,
-        fixtureState: null,
-        outcomes
-      });
-    }
-  }
-  return out;
-}
-
-// ../bot/src/public/fetchMarkets.ts
-var PUBLIC_LEAGUES = [
-  EPL,
-  UCL,
-  UEL,
-  COPA_LIBERTADORES,
-  LA_LIGA,
-  SERIE_A,
-  BUNDESLIGA,
-  EREDIVISIE,
-  LIGUE_1,
-  WORLD_CUP,
-  NBA,
-  MLB,
-  NHL
-];
-async function fetchPublicMarkets(now = /* @__PURE__ */ new Date()) {
-  const sxFetches = PUBLIC_LEAGUES.map(
-    (league) => fetchSxBetMarkets(league).catch(() => [])
-  );
-  const polyFetches = PUBLIC_LEAGUES.map((league) => {
-    if (!league.polymarket) return Promise.resolve([]);
-    return fetchPolymarketMarkets(league).catch(() => []);
-  });
-  const [sxResults, polyResults] = await Promise.all([
-    Promise.all(sxFetches),
-    Promise.all(polyFetches)
+async function fetchPublicOrderBook(pointers) {
+  const { sx, poly } = pointers;
+  const [sxResult, polyResult] = await Promise.all([
+    sx ? sxSideLevels(sx) : Promise.resolve(null),
+    poly ? polyTokenLevels(poly) : Promise.resolve(null)
   ]);
-  return buildOverlaidMarkets(sxResults.flat(), polyResults.flat(), now);
+  const levels = [...sxResult?.levels ?? [], ...polyResult ?? []].sort((a, b) => a.odds - b.odds);
+  const response = { levels };
+  if (sxResult) {
+    response.sxMarketHash = sxResult.hash;
+    response.sxSide = sxResult.side;
+  }
+  if (poly) response.polyTokenId = poly;
+  return response;
 }
 
-// serverless/markets.ts
-async function handler(_req, res) {
+// serverless/orderbook.ts
+async function handler(req, res) {
   try {
-    const markets = await fetchPublicMarkets();
-    res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
-    res.status(200).json(markets);
+    const url = new URL(req.url ?? "", "http://localhost");
+    const sx = url.searchParams.get("sx");
+    const poly = url.searchParams.get("poly");
+    if (!sx && !poly) {
+      res.status(400).json({ error: "sx or poly pointer is required" });
+      return;
+    }
+    const book = await fetchPublicOrderBook({ sx, poly });
+    res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=20");
+    res.status(200).json(book);
   } catch (err) {
-    console.error("[api/markets] fetch failed", err);
+    console.error("[api/trade/orderbook] fetch failed", err);
     res.status(500).json({ error: "internal_server_error" });
   }
 }
